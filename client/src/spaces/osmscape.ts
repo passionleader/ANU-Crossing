@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mat, nightGlow, texMat } from "../world.ts";
-import { HIGH, RICH } from "../settings.ts";
+import { HIGH, QUALITY, RICH } from "../settings.ts";
 import { asphaltMat } from "./backdrop.ts";
 import { OSM_BUILDINGS, OSM_ROADS, OSM_TREES } from "./osmscape-data.ts";
 import { CREEK_Z, bend } from "./creek.ts";
@@ -27,7 +27,18 @@ export const SCENERY_FOG: [number, number] = HIGH ? [60, 220] : [45, 170];
  * is already solid sky: past that they cost the GPU and nobody sees them. (Before, High drew all 881
  * OSM roads out to ~750 m behind a fog that ends at 220 m.)
  */
-const ROAD_REACH = SCENERY_FOG[1];
+/**
+ * Low and Medium go further (the user, 11/10, after Low still stuttered looking across campus): roads
+ * only out to 120 m, where the fog has mostly closed in; a flat strip that far off is barely a line.
+ */
+const ROAD_REACH = HIGH ? SCENERY_FOG[1] : 120;
+/** Filler trees past the map's edges (the ring you look at most): fewer on Medium and Low, never none. */
+const FILLER_TREES = HIGH ? 260 : QUALITY === "medium" ? 140 : 60;
+/**
+ * Low: the distant buildings' walls are drawn one-sided (facing out, which is all anyone sees from
+ * the map) and without the night-window glow texture. Fewer pixels shaded twice, one texture fewer.
+ */
+const LEAN_WALLS = QUALITY === "low";
 const roadBeyondFog = (pts: number[]): boolean => {
   for (let i = 0; i < pts.length; i += 2) if (Math.hypot(pts[i]!, pts[i + 1]!) <= ROAD_REACH) return false;
   return true;
@@ -192,7 +203,10 @@ export function addOsmScape(group: THREE.Group): void {
       const b = walls.vert(x1, 0, z1, u1, 0);
       const c = walls.vert(x1, h, z1, u1, v1);
       const d = walls.vert(x0, h, z0, u0, v1);
-      walls.quad(a, b, c, d);
+      // Wound this way the front face points into the building (fine while both sides are drawn);
+      // Low draws one side only, so it turns them to face out.
+      if (LEAN_WALLS) walls.quad(a, d, c, b);
+      else walls.quad(a, b, c, d);
       run += len;
     }
     // Roof: triangulate the footprint (y up; the shape is in x, -z so it faces up).
@@ -203,9 +217,11 @@ export function addOsmScape(group: THREE.Group): void {
     for (const [a, b, c] of tris) roofs.idx.push(base + a!, base + c!, base + b!);
   }
   const { map, glow } = facadeMaps();
-  const wallMat = new THREE.MeshStandardMaterial({ map, roughness: 0.95, metalness: 0, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0, side: THREE.DoubleSide });
+  const wallMat = LEAN_WALLS
+    ? new THREE.MeshStandardMaterial({ map, roughness: 0.95, metalness: 0, side: THREE.FrontSide })
+    : new THREE.MeshStandardMaterial({ map, roughness: 0.95, metalness: 0, emissive: 0xffffff, emissiveMap: glow, emissiveIntensity: 0, side: THREE.DoubleSide });
   wallMat.userData.unique = true;
-  nightGlow.push({ m: wallMat, full: 0.9 });
+  if (!LEAN_WALLS) nightGlow.push({ m: wallMat, full: 0.9 });
   const wm = walls.mesh(wallMat);
   if (wm) scape.add(wm);
   const rm = roofs.mesh(mat(0x8f8a80));
@@ -243,7 +259,7 @@ export function addOsmScape(group: THREE.Group): void {
   const HANDMADE: [number, number, number, number][] = [[-66, 77, -90, -26], [-46, 53, 11, 58], [-53, -16, 11, 75], [16, 56, -141, 19]];
   let treeSeed = 4020;
   const rand = (): number => ((treeSeed = (treeSeed * 1103515245 + 12345) % 2147483648) / 2147483648);
-  const want = RICH ? 260 : 120;
+  const want = FILLER_TREES;
   for (let tries = 0, made = 0; made < want && tries < want * 12; tries++) {
     // A point 12-75 m past the walkable box (halfX 89, halfZ 40), all the way round.
     const ang = rand() * Math.PI * 2;
@@ -270,4 +286,76 @@ export function addOsmScape(group: THREE.Group): void {
   }
 
   group.add(scape);
+}
+
+export function addTelstraTower(group: THREE.Group): void {
+  // Where it can be seen (the helper's marker test, 11/9): south-west (225°), above the creek, from
+  // the map's west side with the view turned; Black Mountain is really a little more to the west.
+  // 600 m out, about 85 tall in all, so its top stays inside the outdoor camera's frame.
+  const DIST = 600;
+  // 235°: a little west of south-west, so it sits clear of the screen's top-right buttons in that view.
+  const BEARING = (235 * Math.PI) / 180;
+  const cx = -Math.sin(BEARING - Math.PI) * DIST, cz = -Math.cos(BEARING) * DIST;
+  const own = (color: number, rough = 0.95): THREE.MeshStandardMaterial => {
+    const m = new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0, fog: false });
+    m.userData.unique = true;
+    return m;
+  };
+  const glowMat = (color: number, emissive: number, full: number): THREE.MeshStandardMaterial => {
+    const m = new THREE.MeshStandardMaterial({ color, roughness: 0.6, metalness: 0, fog: false, emissive, emissiveIntensity: 0 });
+    m.userData.unique = true;
+    nightGlow.push({ m, full });
+    return m;
+  };
+  const tower = new THREE.Group();
+  tower.name = "telstra-tower";
+  tower.position.set(cx, 0, cz);
+  // Long axis of the hill across the line of sight from the map.
+  tower.rotation.y = Math.atan2(cx, cz) + Math.PI / 2;
+  // Wide enough to read as a silhouette 600 m off (at true width the shaft was under a pixel: the
+  // helper saw nothing, 11/9), and short enough that its top stays in frame: about 63 tall in all.
+  tower.scale.set(2, 0.68, 2);
+
+  const HILL_H = 40; // about 27 after the squash: the hill at 60 alone filled the frame to its top (helper QA)
+  const hill = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI / 2), own(0x6f7d74));
+  hill.scale.set(75, HILL_H, 55); // about 300 wide once the group is widened
+  tower.add(hill);
+
+  const base = HILL_H - 2;
+  const SHAFT = 46;
+  const grey = 0xc9ccd1;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 2.6, SHAFT, 10), own(grey, 0.7));
+  shaft.position.y = base + SHAFT / 2;
+  tower.add(shaft);
+  // The platform: a cone under a flat drum (the doughnut) near the upper third, with a lit band round the drum.
+  const y0 = base + SHAFT * 0.62;
+  const cone = new THREE.Mesh(new THREE.CylinderGeometry(11, 2, 5.5, 14), own(0xb9bdc2, 0.7));
+  cone.position.y = y0;
+  tower.add(cone);
+  const drum = new THREE.Mesh(new THREE.CylinderGeometry(11.5, 11, 4.6, 14), own(grey, 0.7));
+  drum.position.y = y0 + 5;
+  tower.add(drum);
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(11.6, 11.6, 1.6, 14), glowMat(0x39322a, 0xffd9a0, 1.2));
+  band.position.y = y0 + 5;
+  tower.add(band);
+  const roof = new THREE.Mesh(new THREE.CylinderGeometry(3.4, 11, 3, 14), own(0xaeb2b7, 0.7));
+  roof.position.y = y0 + 8.6;
+  tower.add(roof);
+  // The shaft carries on above the platform, then the thin mast.
+  const topY = base + SHAFT;
+  const upper = new THREE.Mesh(new THREE.CylinderGeometry(0.9, 1.1, topY - (y0 + 10.4) + 0.1, 8), own(grey, 0.7));
+  upper.position.y = (topY + y0 + 10.4) / 2;
+  tower.add(upper);
+  const MAST = 8;
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.6, MAST, 6), own(0xdfe1e4, 0.6));
+  mast.position.y = topY + MAST / 2;
+  tower.add(mast);
+  // Aircraft lights: the mast's tip and two on the platform's rim.
+  const red = glowMat(0x3a0a0a, 0xff2a1a, 2.2);
+  for (const [x, y, z, r] of [[0, topY + MAST, 0, 0.9], [11.5, y0 + 7.4, 0, 0.9], [-11.5, y0 + 7.4, 0, 0.9]] as const) {
+    const l = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), red);
+    l.position.set(x, y, z);
+    tower.add(l);
+  }
+  group.add(tower);
 }
