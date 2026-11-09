@@ -36,6 +36,6 @@ ENV DATABASE_PATH=/data/app.db
 # The AI guides' pages (public ANU pages, crawled), attached to a GitHub release
 # so the repo stays small. If it can't be fetched the build goes on without it
 # (the assistants then say they couldn't find it in their pages).
-ARG KNOWLEDGE_URL=https://github.com/passionleader/ANU-Crossing/releases/download/knowledge-2026-11/knowledge.db.gz
+ARG KNOWLEDGE_URL=https://github.com/passionleader/ANU-Crossing/releases/download/knowledge-2026-11/knowledge-clean.db.gz
 RUN mkdir -p /seed && if [ -n "$KNOWLEDGE_URL" ]; then node -e "fetch(process.argv[1]).then(async r=>{if(!r.ok){console.log('knowledge.db not attached ('+r.status+'), building without it');return}require('fs').writeFileSync('/seed/knowledge.db.gz',Buffer.from(await r.arrayBuffer()));console.log('knowledge.db.gz fetched')}).catch(e=>console.log('knowledge.db fetch failed: '+e.message))" "$KNOWLEDGE_URL"; fi
 CMD ["sh", "scripts/start-render.sh"]
