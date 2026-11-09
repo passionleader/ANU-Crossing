@@ -173,30 +173,48 @@ app.get("/readme/", (c) => {
 </head><body><main>${body}</main><p><a href="/">Back to the campus</a></p></body></html>`);
 });
 
-// Credits and licences (13, 120): who made it and for which course (ABOUT.md),
-// then the assets' sources and licences, from the same
-// file the build ships (client/public/assets/CREDITS.md), as a page the
-// settings dialog opens in the in-app window.
+// Credits and licences (13, 120), in two tabs: Credits is who made it, where it runs and
+// the README's argument (ABOUT.md); Licences is the code's licence, the libraries
+// (LICENCES.md) and the assets' sources (CREDITS.md, the file the build ships). The
+// settings dialog opens it in the in-app window. The tabs are radio buttons and CSS,
+// so the page needs no script.
 app.get("/credits/", (c) => {
-  const file = ["client/dist/assets/CREDITS.md", "client/public/assets/CREDITS.md"].find((f) => existsSync(f));
+  const pick = (name: string): string | undefined => [`client/dist/assets/${name}`, `client/public/assets/${name}`].find((f) => existsSync(f));
+  const file = pick("CREDITS.md");
   if (!file) return c.text("No credits file.", 404);
-  const about = ["client/dist/assets/ABOUT.md", "client/public/assets/ABOUT.md"].find((f) => existsSync(f));
+  const about = pick("ABOUT.md");
+  const licences = pick("LICENCES.md");
   // The README's argument, from "What it is" up to "Using this code" (the markers' sign-up notes
   // and the licence stay on /readme/), read each time so the two never drift apart (the user, 11/9).
   const readme = readFileSync("README.md", "utf8");
   const from = readme.indexOf("## What it is");
   const to = readme.indexOf("## Using this code");
   const argument = from >= 0 ? readme.slice(from, to > from ? to : undefined).replace(/^## /gm, "### ") : "";
-  const top = about ? marked.parse(readFileSync(about, "utf8").replace("{{README}}", argument), { async: false }) : "";
+  const md = (text: string): string => marked.parse(text, { async: false });
   // It opens in the in-app window, where outside sites would load blank (most
   // refuse to be framed): every outside link opens a new tab instead.
-  const body = (top + marked.parse(readFileSync(file, "utf8"), { async: false })).replaceAll('<a href="http', '<a target="_blank" rel="noopener" href="http');
+  const outward = (html: string): string => html.replaceAll('<a href="http', '<a target="_blank" rel="noopener" href="http');
+  const creditsTab = outward(about ? md(readFileSync(about, "utf8").replace("{{README}}", argument)) : "");
+  const assets = readFileSync(file, "utf8").replace(/^# Asset credits\s*/, "").replace(/^## /gm, "### ");
+  const licencesTab = outward(md((licences ? readFileSync(licences, "utf8") : "## Assets, music and map data\n") + "\n" + assets));
   return c.html(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Credits and licences · ANU Crossing</title>
-<style>body{max-width:46rem;margin:1.5rem auto;padding:0 1rem;font:0.95rem/1.55 system-ui,sans-serif;color:#2b2418;background:#f7f1e3}table{border-collapse:collapse;font-size:0.85rem}td,th{border:1px solid #e4d7ba;padding:3px 6px;text-align:left;vertical-align:top}code{font-size:0.85em}a{color:#6b3f1d}</style>
-</head><body><main><p><strong>ANU Crossing</strong> is an unofficial, fan-made student project, not an ANU service. The code is the author's (see the repository's LICENSE). Everything it uses from elsewhere, and its licence:</p>${body}</main></body></html>`);
+<style>body{max-width:46rem;margin:1.5rem auto;padding:0 1rem;font:0.95rem/1.55 system-ui,sans-serif;color:#2b2418;background:#f7f1e3}table{border-collapse:collapse;font-size:0.85rem}td,th{border:1px solid #e4d7ba;padding:3px 6px;text-align:left;vertical-align:top}code{font-size:0.85em}a{color:#6b3f1d}
+.tabs input{position:absolute;opacity:0;pointer-events:none}
+.tabs label{display:inline-block;padding:6px 16px;margin-right:4px;border:1px solid #c9b48c;border-bottom:none;border-radius:10px 10px 0 0;background:#efe4cc;cursor:pointer;font-weight:600}
+.tabs input:focus-visible+label{outline:2px solid #6b3f1d;outline-offset:2px}
+.tabs .panel{display:none;border-top:1px solid #c9b48c;padding-top:.5rem}
+#tab-credits:checked+label,#tab-licences:checked+label{background:#6b3f1d;color:#fff8ea}
+#tab-credits:checked~#panel-credits,#tab-licences:checked~#panel-licences{display:block}</style>
+</head><body><main><p><strong>ANU Crossing</strong> is an unofficial, fan-made student project, not an ANU service.</p>
+<div class="tabs">
+<input type="radio" name="tab" id="tab-credits" checked><label for="tab-credits">Credits</label>
+<input type="radio" name="tab" id="tab-licences"><label for="tab-licences">Licences</label>
+<section class="panel" id="panel-credits" aria-labelledby="tab-credits">${creditsTab}</section>
+<section class="panel" id="panel-licences" aria-labelledby="tab-licences">${licencesTab}</section>
+</div></main></body></html>`);
 });
 
 type Body = Record<string, unknown>;
