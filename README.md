@@ -4,23 +4,47 @@
 
 <sub>[Click to play the video](docs/demo/meet.webm).</sub>
 
-## Try it
+## Two places to try it
 
-**Live:** https://anu-crossing.passionleader.click
+| | Course version | Portfolio mirror |
+|---|---|---|
+| Address | https://comp4020-final-passionleader.fly.dev | https://anu-crossing.passionleader.click |
+| App server | Fly.io: one 256 MB machine, SQLite on a 1 GB volume, deployed by GitHub Actions | Render, free web service (Singapore) |
+| Voice and screen sharing | LiveKit on my own t4g.small EC2 (AWS) | LiveKit Cloud, free plan |
+| Files, sign-up mail, AI assistants | AWS S3, SES and Bedrock | the same AWS S3, SES and Bedrock |
+| Data | kept on the volume | **not kept**: the free server has no disk, so accounts, posts and notes reset whenever it restarts |
+| First visit | quick | **about a minute** while the free server wakes up |
+| Status | as submitted for COMP8020; runs until Fly is switched off after marking | this repository's `main`, any email may sign up |
 
-It runs on a free server, so the first visit can take about a minute to wake
-it up. Sign up with any email (a student number works too), or come in as a
-guest. For two people at once, open a second Chrome profile.
+The course version is the one described in [PROCESS.md](PROCESS.md). The mirror
+changes only what moving off Fly needed (where the visitor's IP comes from,
+any-email sign-up with staff still ANU-only, and loading the AI assistants'
+pages at start-up).
 
-<u>What to try:</u> walk and chat with someone, hold Q for emotes and sticky
-notes, ask an AI campus assistant (Taylor in the Student Hub, Priya in the
-library) something about ANU, and go into a team room together to talk and
-share a screen.
+<u>What to try:</u> sign up with any email (a student number works too) or
+come in as a guest, and open a second Chrome profile to be two people at
+once. Walk and chat, hold Q for emotes and sticky notes, ask an AI campus
+assistant (Taylor in the Student Hub, Priya in the library) something about
+ANU, and go into a team room together to talk and share a screen.
 
-This repository started as my COMP8020 final project at ANU (Agentic Coding
-Studio, 2026). The README's argument below is the one I submitted. The code
-has since been moved to Render and LiveKit Cloud so it can keep running for
-my portfolio.
+## How it was built
+
+This started as my COMP8020 final project at ANU (Agentic Coding Studio,
+2026), built over crits 8 to 10 and the final weeks with several Claude Code
+sessions working in parallel. The README's argument below is the one I
+submitted.
+
+- [PROCESS.md](PROCESS.md): the stack and what it cost, how I planned with a
+  plan file and a numbered checklist, how I directed the agents and fixed the
+  harness when something went wrong, and what changed after crit 10.
+- Reflections: [crit 8](reflections/crit-8.md), [crit 9](reflections/crit-9.md),
+  [crit 10](reflections/crit-10.md) and [the final project](reflections/final.md)
+  (the breakthrough that moved the work forward, and who I want to be as a
+  developer).
+- [Decision records](docs/decisions/) (what lasts, who may see what, AI
+  assistants that answer only from ANU's pages, voice on its own server,
+  sign-up, several agent sessions), the [research note](research-note.md) and
+  the [architecture diagrams](docs/diagrams/).
 
 ## What it is
 

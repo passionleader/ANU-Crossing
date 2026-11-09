@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { mat, nightGlow, texMat } from "../world.ts";
-import { RICH } from "../settings.ts";
+import { HIGH, RICH } from "../settings.ts";
 import { asphaltMat } from "./backdrop.ts";
 import { OSM_BUILDINGS, OSM_ROADS, OSM_TREES } from "./osmscape-data.ts";
 import { CREEK_Z, bend } from "./creek.ts";
@@ -15,6 +15,18 @@ const anyInCreek = (pts: number[]): boolean => pts.some((_, i) => i % 2 === 0 &&
  */
 const onEastRoad = (x: number, z: number): boolean => x >= 38 && x <= 345 && z >= -58 && z <= -19;
 const anyOnEastRoad = (pts: number[]): boolean => pts.some((_, i) => i % 2 === 0 && onEastRoad(pts[i]!, pts[i + 1]!));
+/**
+ * How far out the OSM scenery is drawn. High keeps all of it (out to ~750 m); Low and Medium stop at
+ * SCENERY_REACH, where main.ts's fog (SCENERY_FOG) has already faded everything to the sky, so slower
+ * computers draw about half the distant buildings and roads and nobody sees an edge.
+ */
+export const SCENERY_REACH = HIGH ? Infinity : 200;
+export const SCENERY_FOG: [number, number] = HIGH ? [60, 220] : [45, 170];
+const beyondReach = (pts: number[]): boolean => {
+  if (SCENERY_REACH === Infinity) return false;
+  for (let i = 0; i < pts.length; i += 2) if (Math.hypot(pts[i]!, pts[i + 1]!) <= SCENERY_REACH) return false;
+  return true;
+};
 
 // Scenery past the walkable outdoor map, laid out from OpenStreetMap
 // (qa-tools/osm/gen_osmscape.py makes osmscape-data.ts; only derived x, z
@@ -137,7 +149,7 @@ export function addOsmScape(group: THREE.Group): void {
   const asphalt = new Batch();
   const paving = new Batch();
   for (const [kind, width, pts] of OSM_ROADS) {
-    if (anyInCreek(pts) || anyOnEastRoad(pts)) continue;
+    if (anyInCreek(pts) || anyOnEastRoad(pts) || beyondReach(pts)) continue;
     if (kind === 0) ribbon(asphalt, pts, width, 0.003, 8);
     else ribbon(paving, pts, width, 0.004, 2);
   }
@@ -153,7 +165,7 @@ export function addOsmScape(group: THREE.Group): void {
   const walls = new Batch();
   const roofs = new Batch();
   for (const [levels, p] of OSM_BUILDINGS) {
-    if (anyInCreek(p) || anyOnEastRoad(p)) continue;
+    if (anyInCreek(p) || anyOnEastRoad(p) || beyondReach(p)) continue;
     const n = p.length / 2;
     const h = levels * FLOOR_H + 0.6;
     const pts: [number, number][] = [];
@@ -195,7 +207,7 @@ export function addOsmScape(group: THREE.Group): void {
   const spots: number[] = [];
   for (let i = 0; i < OSM_TREES.length; i += 2) {
     const x = OSM_TREES[i]!, z = OSM_TREES[i + 1]!;
-    if (!onEastRoad(x, z)) spots.push(x, z);
+    if (!onEastRoad(x, z) && Math.hypot(x, z) <= SCENERY_REACH) spots.push(x, z);
   }
   const onRoad = (x: number, z: number): boolean => {
     for (const [, width, pts] of OSM_ROADS) {

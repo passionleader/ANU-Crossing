@@ -13,7 +13,7 @@ what I meant straight away, so I made it the main session and gave Sonnet the
 small parallel jobs like assets and QA. Splitting the work like that really
 paid off.
 
-![Crit 8 work split between the Opus session (server, deploy, docs) and the Sonnet session (client, assets, QA)](../diagrams/4-work-split.png)
+![Crit 8 work split between the Opus session (server, deploy, docs) and the Sonnet session (client, assets, QA)](../docs/diagrams/4-work-split.png)
 
 ## What this changed about who I want to be as a developer
 
@@ -27,7 +27,7 @@ do you move from the HTTP I've always used to WebSockets, and how does it
 actually work? I'll need that for the final project. People say real-time
 needs Redis, but on a single small instance I doubt caching buys much.
 
-![From crit 8 to the final project: REST writes now, WebSockets and in-memory positions next](../diagrams/3-crit8-to-final.png)
+![From crit 8 to the final project: REST writes now, WebSockets and in-memory positions next](../docs/diagrams/3-crit8-to-final.png)
 
 ---
 

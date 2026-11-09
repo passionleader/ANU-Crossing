@@ -4,7 +4,7 @@ Status: accepted (final project). This answers two trade-offs in
 [002](002-who-may-see-and-change-what.md): 'nobody is verified' and '"staff"
 is one admin account'.
 
-![Email sign-up, step by step](../../diagrams/12-email-signup.png)
+![Email sign-up, step by step](../diagrams/12-email-signup.png)
 
 ## Context
 

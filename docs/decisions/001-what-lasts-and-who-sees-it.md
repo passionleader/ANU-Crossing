@@ -5,7 +5,7 @@ after they're stuck, can't go up in the Student Hub, and keep 2 m clear of
 doors. See "Notes that never expire" below. Map chat is now kept a day for
 reports about abuse. See "Losing chat" below.
 
-![How the real-time layer talks: browsers, and the server and SQLite in one Fly machine](../../diagrams/5-crit9-realtime.png)
+![How the real-time layer talks: browsers, and the server and SQLite in one Fly machine](../diagrams/5-crit9-realtime.png)
 
 ## Context
 

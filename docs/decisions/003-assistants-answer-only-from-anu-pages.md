@@ -2,7 +2,7 @@
 
 Status: accepted (final project)
 
-![How the browser, the server and AWS talk, where the bottom row is an assistant's answer](../../diagrams/8-client-server-aws.png)
+![How the browser, the server and AWS talk, where the bottom row is an assistant's answer](../diagrams/8-client-server-aws.png)
 
 ## Context
 

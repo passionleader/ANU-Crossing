@@ -2,7 +2,7 @@
 
 Status: accepted (final project)
 
-![Voice: the app signs a two-minute ticket, and the audio goes through my LiveKit server](../../diagrams/11-voice-chat.png)
+![Voice: the app signs a two-minute ticket, and the audio goes through my LiveKit server](../diagrams/11-voice-chat.png)
 
 ## Context
 
@@ -32,7 +32,7 @@ working, and only voice stops.
 ## Trade-offs
 
 - One more server to look after, with its own ports, certificates,
-  DNS (see [diagram 10](../../diagrams/10-aws-infrastructure.png)).
+  DNS (see [diagram 10](../diagrams/10-aws-infrastructure.png)).
 - It costs credit every hour it runs, used or not.
 
 ## How it's checked

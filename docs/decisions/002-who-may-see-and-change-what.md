@@ -6,7 +6,7 @@ Status: accepted (crit 10). Updated for the final project by
 open counselling rooms. The rest of this record is as written for crit 10.
 See "Since crit 10" at the end.
 
-![The whole architecture as of crit 10: browsers, one Fly machine with the server and SQLite, and the private S3 bucket](../../diagrams/6-crit10-architecture.png)
+![The whole architecture as of crit 10: browsers, one Fly machine with the server and SQLite, and the private S3 bucket](../diagrams/6-crit10-architecture.png)
 
 ## Context
 

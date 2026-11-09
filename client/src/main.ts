@@ -111,6 +111,7 @@ const quests = mountQuests();
 let walked = 0;
 import { dogHappy } from "./spaces/dog.ts";
 import { poopMesh } from "./spaces/poop.ts";
+import { SCENERY_FOG } from "./spaces/osmscape.ts";
 import { mountMute } from "./mute.ts";
 import { mountInterests } from "./interests.ts";
 import { mountFollows } from "./follows.ts";
@@ -1821,7 +1822,7 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
   placeBadges();
   if (space.outdoor) {
     applySky();
-    scene.fog = new THREE.Fog(0xc9dcea, 60, 220);
+    scene.fog = new THREE.Fog(0xc9dcea, SCENERY_FOG[0], SCENERY_FOG[1]);
   } else {
     scene.remove(sky, skyDome);
     scene.background = new THREE.Color(space.background);

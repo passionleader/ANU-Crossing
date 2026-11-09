@@ -13,7 +13,7 @@ implementation order and the final project's three bundles are in
 Read before planning or building: `README.md` (what good means for this app),
 `spec/README.md` and `spec/*.test.ts` (what is enforced), and the
 [final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/).
-The architecture is drawn in `diagrams/8`–`12` (browser, server and AWS; the
+The architecture is drawn in `docs/diagrams/8`–`12` (browser, server and AWS; the
 whole server; the AWS side and its IAM user; voice on the author's t4g.small EC2;
 email sign-up) and the big decisions are in `docs/decisions/`. Keep both true
 when a flow changes.
