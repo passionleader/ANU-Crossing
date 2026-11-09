@@ -4,38 +4,23 @@
 
 <sub>[Click to play the video](docs/demo/meet.webm).</sub>
 
-## For markers
+## Try it
 
-This is a space for ANU students and staff, so a guest can only walk, chat,
-emote, use team rooms. Signing up with an ANU email unlocks everything
-else (sticky notes, posts, comments, mail, files).
+**Live:** https://anu-crossing.passionleader.click
 
-<u>Signing up (about two minutes, free):</u> press "Sign up with your ANU
-email", tick "I'm ANU staff" and enter your own @anu.edu.au address. A
-six-digit code arrives by email within a minute. Enter it, then choose a
-name (up to 8 letters, digits or underscores) and a password (8+).
+It runs on a free server, so the first visit can take about a minute to wake
+it up. Sign up with any email (a student number works too), or come in as a
+guest. For two people at once, open a second Chrome profile.
 
-<u>Two people at once:</u> use two Chrome profiles. One can be your signed-up
-account and the other a guest ("Continue as a guest", no email needed), so
-you only need one ANU address.
+<u>What to try:</u> walk and chat with someone, hold Q for emotes and sticky
+notes, ask an AI campus assistant (Taylor in the Student Hub, Priya in the
+library) something about ANU, and go into a team room together to talk and
+share a screen.
 
-<u>What to try:</u>
-- Real time: each sees the other walk. Chat with Enter, hold Q for emotes,
-  or go into the same team room (off the library or a classroom) and chat or
-  write in its shared notes.
-- Persistence (as the signed-up account): stick a note (hold Q, then 1)
-  outside, or post on the advertising board by the north road. Reload, and
-  both windows still show it. The guest sees it too, and comes back as the
-  same guest name after a reload. A team room keeps its chat and notes
-  while anyone is still inside, so one of you can reload and find them.
-- Also worth a minute: in the library, press E at Robin and ask 'How do I
-  enrol?'. The answer links ANU's own pages, and an off-topic question gets
-  'I couldn't find that'. As staff, walk into a counselling room off the
-  Student Hub and invite the guest from the room menu: the guest's window
-  asks at once, and Accept brings them in.
-
-<u>Optional, no setup:</u> the AI assistants (press E near an "AI" tag), and
-voice (allow the microphone, and outside, hold V on a computer).
+This repository started as my COMP8020 final project at ANU (Agentic Coding
+Studio, 2026). The README's argument below is the one I submitted. The code
+has since been moved to Render and LiveKit Cloud so it can keep running for
+my portfolio.
 
 ## What it is
 
