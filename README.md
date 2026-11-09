@@ -8,7 +8,7 @@
 
 | | Course version | Portfolio mirror |
 |---|---|---|
-| Address | https://comp4020-final-passionleader.fly.dev | https://anu-crossing.passionleader.click |
+| Address | https://comp4020-final-passionleader.fly.dev | https://anu-crossing.passionleader.click (the site can take up to a minute to load) |
 | App server | Fly.io: one 256 MB machine, SQLite on a 1 GB volume, deployed by GitHub Actions | Render, free web service (Singapore) |
 | Voice and screen sharing | LiveKit on my own t4g.small EC2 (AWS) | LiveKit Cloud, free plan |
 | Files, sign-up mail, AI assistants | AWS S3, SES and Bedrock | the same AWS S3, SES and Bedrock |
