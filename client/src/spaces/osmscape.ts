@@ -22,6 +22,16 @@ const anyOnEastRoad = (pts: number[]): boolean => pts.some((_, i) => i % 2 === 0
  */
 export const SCENERY_REACH = HIGH ? Infinity : 200;
 export const SCENERY_FOG: [number, number] = HIGH ? [60, 220] : [45, 170];
+/**
+ * Roads lie flat and are the first thing the fog swallows, so on every level they stop where the fog
+ * is already solid sky: past that they cost the GPU and nobody sees them. (Before, High drew all 881
+ * OSM roads out to ~750 m behind a fog that ends at 220 m.)
+ */
+const ROAD_REACH = SCENERY_FOG[1];
+const roadBeyondFog = (pts: number[]): boolean => {
+  for (let i = 0; i < pts.length; i += 2) if (Math.hypot(pts[i]!, pts[i + 1]!) <= ROAD_REACH) return false;
+  return true;
+};
 const beyondReach = (pts: number[]): boolean => {
   if (SCENERY_REACH === Infinity) return false;
   for (let i = 0; i < pts.length; i += 2) if (Math.hypot(pts[i]!, pts[i + 1]!) <= SCENERY_REACH) return false;
@@ -149,7 +159,7 @@ export function addOsmScape(group: THREE.Group): void {
   const asphalt = new Batch();
   const paving = new Batch();
   for (const [kind, width, pts] of OSM_ROADS) {
-    if (anyInCreek(pts) || anyOnEastRoad(pts) || beyondReach(pts)) continue;
+    if (anyInCreek(pts) || anyOnEastRoad(pts) || roadBeyondFog(pts)) continue;
     if (kind === 0) ribbon(asphalt, pts, width, 0.003, 8);
     else ribbon(paving, pts, width, 0.004, 2);
   }

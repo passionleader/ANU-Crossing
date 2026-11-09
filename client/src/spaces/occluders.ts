@@ -13,14 +13,22 @@ export interface Occluder {
 }
 const occluders = new WeakMap<THREE.Group, Occluder[]>();
 
-/** Makes a mesh's material safe to fade on its own, and transparent-capable. */
+/**
+ * Makes a mesh's material safe to fade on its own. It stays opaque until it actually fades
+ * (main.ts turns `transparent` on while it's see-through and off once it's whole again):
+ * transparent materials are sorted and drawn in a slower pass every frame, so a campus full of
+ * always-transparent buildings stuttered on slower computers when looking across it (the user, 11/10).
+ */
 function own(mesh: THREE.Mesh): void {
   // Shared colour materials are copied; textured ones are already unique, and
   // copying them would lose the texture that arrives after loading.
   const one = (m: THREE.Material): THREE.Material => {
     const mine = m.userData.unique ? m : m.clone();
     mine.userData.unique = true;
-    mine.transparent = true;
+    // What it looks like whole: most parts are opaque at 1, but a few are see-through by design
+    // (Lab Coffee's warm window at 0.55) and must go back to that, not to solid.
+    mine.userData.restOpacity = mine.opacity;
+    mine.userData.restTransparent = mine.transparent;
     return mine;
   };
   mesh.material = Array.isArray(mesh.material) ? mesh.material.map(one) : one(mesh.material);

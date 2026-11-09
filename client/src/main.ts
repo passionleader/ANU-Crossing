@@ -3040,7 +3040,18 @@ function update(dt: number, now: number): void {
     for (const mesh of o.meshes) {
       mesh.visible = !inside;
       for (const m of materialsOf(mesh)) {
-        m.opacity += ((blocking ? 0.2 : 1) - m.opacity) * ease;
+        const rest: number = m.userData.restOpacity ?? 1;
+        const restSee: boolean = m.userData.restTransparent ?? false;
+        // Whole and staying whole: leave it as it was made, opaque the fast way (occluders.ts).
+        if (!blocking && m.opacity === rest && m.transparent === restSee) continue;
+        const target = blocking ? Math.min(0.2, rest) : rest;
+        m.opacity += (target - m.opacity) * ease;
+        if (!blocking && Math.abs(m.opacity - rest) < 0.005) m.opacity = rest;
+        const see = restSee || m.opacity < 1;
+        if (see !== m.transparent) {
+          m.transparent = see;
+          m.needsUpdate = true; // three.js recompiles the material once on the switch
+        }
         m.depthWrite = m.opacity > 0.95;
       }
     }
