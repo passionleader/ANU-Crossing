@@ -1,4 +1,5 @@
 import "./style.css";
+import { Track } from "./smoothing.ts";
 import "./mobilefix.css";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -795,6 +796,8 @@ interface OtherView {
   group: THREE.Group;
   target: THREE.Vector3;
   rot: number;
+  /** Their updates, played a little in the past so they glide (smoothing.ts). */
+  track: Track;
   /** Smoothed ground speed, to pick idle / walk / run for the animation. */
   speed: number;
   /** Their look, to notice when it changes. */
@@ -826,7 +829,7 @@ function upsertOther(p: RemotePlayer): void {
     const label = tag(group, p.staff ? `${p.name} · staff${p.office ? " · Office hours" : ""}` : p.name, 2.2, p.staff ? "player-label staff-label" : "player-label").element;
     group.position.set(p.x, p.y, p.z);
     scene.add(group);
-    view = { name: p.name, avatar, variant, group, target: new THREE.Vector3(), rot: p.rot, speed: 0, lookKey: JSON.stringify(look), staff: !!p.staff, label, office: !!p.office, tagsKey: "" };
+    view = { name: p.name, avatar, variant, group, target: new THREE.Vector3(), rot: p.rot, track: new Track(), speed: 0, lookKey: JSON.stringify(look), staff: !!p.staff, label, office: !!p.office, tagsKey: "" };
     others.set(p.id, view);
   }
   // A new look (they changed it while here): recolour in place.
@@ -861,9 +864,11 @@ function upsertOther(p: RemotePlayer): void {
   if (view.seat) {
     view.target.copy(seatedAt(view.seat));
     view.rot = view.seat.rot;
+    view.track.reset();
   } else {
     view.target.set(p.x, p.y, p.z);
     view.rot = p.rot;
+    view.track.push({ t: performance.now(), x: p.x, y: p.y, z: p.z, rot: p.rot });
   }
 }
 
@@ -2972,7 +2977,13 @@ function update(dt: number, now: number): void {
   minimap.draw(player.position.x, player.position.z, player.rotation.y);
   for (const view of others.values()) {
     const before = view.group.position.clone();
-    view.group.position.lerp(view.target, ease);
+    // Walking: where their updates say they were a moment ago (smoothing.ts), so an
+    // uneven connection doesn't make them stop and jump. Seated: eased onto the seat.
+    const at = view.seat ? null : view.track.at(now);
+    if (at) {
+      view.group.position.set(at.x, at.y, at.z);
+      view.rot = at.rot;
+    } else view.group.position.lerp(view.target, ease);
     const step = Math.hypot(view.group.position.x - before.x, view.group.position.z - before.z) / Math.max(dt, 1e-3);
     view.speed += (step - view.speed) * Math.min(1, dt * 8);
     view.avatar.setMotion(view.seat ? "sit" : motionFor(view.speed));
