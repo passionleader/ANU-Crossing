@@ -529,6 +529,7 @@ export function mountMyRoomUi(deps: {
     }
     for (const d of all) d.root.hidden = true;
     openOne = null;
+    document.body.classList.remove("myroom-open");
   }
   for (const d of all) {
     d.close.addEventListener("click", close);
@@ -555,12 +556,14 @@ export function mountMyRoomUi(deps: {
         status(nbFoot, data.guest ? "A guest's notebook is cleared when you leave your room." : `${data.notebook.length}/5000 · saved as you type`);
         openOne = nb;
         nb.root.hidden = false;
+        document.body.classList.add("myroom-open");
         nbText.focus();
       } else if (what === "calendar") {
         status(calFoot, data.guest ? "A guest's calendar is cleared when you leave your room." : "");
         drawCalendar();
         openOne = cal;
         cal.root.hidden = false;
+        document.body.classList.add("myroom-open");
         addTitle.focus();
       } else {
         draft = structuredClone(data.layout);
@@ -569,6 +572,7 @@ export function mountMyRoomUi(deps: {
         status(feFoot, "");
         openOne = fe;
         fe.root.hidden = false;
+        document.body.classList.add("myroom-open");
       }
     },
     isOpen: () => openOne !== null,

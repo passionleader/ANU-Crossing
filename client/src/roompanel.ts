@@ -238,9 +238,9 @@ export function mountRoomPanel(opts: {
   }
   // My Room's own things, first on its owner's menu (the user, 11/18).
   const homeItems = [
-    addItem("📓", "My notebook", "Your own Markdown notes (only you see them)", () => opts.onHome("notebook")),
-    addItem("📅", "My calendar", "Your dates, and ANU's academic dates you copy in", () => opts.onHome("calendar")),
-    addItem("🪑", "Arrange furniture", "Move, turn and recolour the furniture, the walls and the floor", () => opts.onHome("furniture")),
+    addItem("📓", "My notebook", "Your own Markdown notes (only you see them)", () => (show("closed"), opts.onHome("notebook"))),
+    addItem("📅", "My calendar", "Your dates, and ANU's academic dates you copy in", () => (show("closed"), opts.onHome("calendar"))),
+    addItem("🪑", "Arrange furniture", "Move, turn and recolour the furniture, the walls and the floor", () => (show("closed"), opts.onHome("furniture"))),
   ];
   // In your own room the meeting-room tools wait behind one button, so the room's own things come first.
   const toolsToggle = document.createElement("button");
