@@ -609,8 +609,18 @@ new RGBELoader().load(`${import.meta.env.BASE_URL}assets/sky/kloofendal_48d_part
   hdr.dispose();
   if (space?.outdoor) applySky();
 });
-new THREE.TextureLoader().load(`${import.meta.env.BASE_URL}assets/sky/campus_sky.jpg`, (jpg) => {
+// The sky is 4096×2048: decoded off the main thread (an ImageBitmap) and uploaded before it's first
+// drawn, so a first visit doesn't freeze for half a second while it lands (measured 436 ms).
+// A bitmap can't be flipped on upload, and not every browser flips it on decode (Safari), so the
+// texture's own transform turns it the right way up.
+new THREE.ImageBitmapLoader().load(`${import.meta.env.BASE_URL}assets/sky/campus_sky.jpg`, (bitmap) => {
+  const jpg = new THREE.Texture(bitmap);
+  jpg.flipY = false;
+  jpg.repeat.y = -1;
+  jpg.offset.y = 1;
   jpg.colorSpace = THREE.SRGBColorSpace;
+  jpg.needsUpdate = true;
+  renderer.initTexture(jpg);
   skyDome.material.map = jpg;
   skyDome.material.needsUpdate = true;
   domeReady = true;
