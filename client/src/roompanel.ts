@@ -266,6 +266,9 @@ export function mountRoomPanel(opts: {
   addItem("🖍️", "Whiteboard", "Draw together in a new tab (Excalidraw; everyone here gets the same board)", () => opts.onWhiteboard());
   const shareItem = addItem("🖥️", "Share screen", "Show your screen to everyone here (they watch in the Shared screen view)", () => opts.onShareScreen());
   addItem("📺", "Show a video to the room", "Paste a YouTube or Vimeo link; everyone here watches together", () => show("screen"));
+  // Your notebook comes along to any other room (the user, 11/18): notes from a team meeting land in
+  // My Room. After the user's set order (11/9), not before it. A guest's lives only in their own room.
+  const notebookItem = addItem("📓", "My notebook", "Your My Room notes, open here too (only you see them)", () => (show("closed"), opts.onHome("notebook")));
   addItem(
     "💾",
     "Save chat",
@@ -548,6 +551,7 @@ export function mountRoomPanel(opts: {
     const counselling = info.kind === "counselling" || info.kind === "home";
     invite.hidden = !counselling;
     for (const b of homeItems) b.hidden = !(info.kind === "home" && opts.isMine());
+    notebookItem.hidden = info.kind === "home" || opts.isGuest();
     const nowHome = info.kind === "home" && opts.isMine();
     if (nowHome !== homeMenu) toolsOpen = false;
     homeMenu = nowHome;

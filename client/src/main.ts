@@ -374,6 +374,20 @@ const theatreUi = mountTheatreUi({
   me: () => session?.name ?? "",
   say: (msg) => toast(msg),
   notSent: () => notSent(),
+  notebook: () =>
+    session && isMember(session)
+      ? {
+          load: async () => (await getMyRoom(session!.token)).notebook,
+          save: async (text) => {
+            try {
+              await putMyRoom(session!.token, { notebook: text });
+              return null;
+            } catch (e) {
+              return e instanceof ApiError ? e.message : "Couldn't save. Try again.";
+            }
+          },
+        }
+      : null,
 });
 const myRoomBtn = document.createElement("button");
 myRoomBtn.type = "button";

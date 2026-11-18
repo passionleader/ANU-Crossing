@@ -6,7 +6,7 @@ import { SCREEN } from "./spaces/theatre.ts";
 
 // The lecture theatre's screen and buttons (the user, 11/18). The lecturer's video (server/theatre.ts)
 // plays in a player laid over the 3D screen, kept on it as the camera moves; "Big view" makes it fill
-// the window. "Notes" opens a Markdown notepad on the right (kept in this browser), "Ask" the
+// the window. "Notes" opens your My Room notebook on the right (a guest's stay in this browser), "Ask" the
 // theatre's Q&A (everyone there reads it, the lecturer too), and "Raise hand" tells the lecturers
 // who. Staff also get the link box, play/pause through the player, and the list of raised hands.
 
@@ -25,6 +25,8 @@ export function mountTheatreUi(deps: {
   me(): string;
   say(msg: string): void;
   notSent(): void;
+  /** Your My Room notebook, for a member (null: a guest, whose notes stay in this browser). */
+  notebook(): { load(): Promise<string>; save(text: string): Promise<string | null> } | null;
 }): {
   /** You came in (true) or left (false). */
   shown(on: boolean): void;
@@ -78,7 +80,7 @@ export function mountTheatreUi(deps: {
     return b;
   };
   const bigBtn = btn("⛶ Big view", "Watch the screen full size");
-  const notesBtn = btn("📝 Notes", "Your own notes beside the lecture (kept in this browser)");
+  const notesBtn = btn("📝 Notes", "Your own notes beside the lecture (your My Room notebook)");
   const askBtn = btn("💬 Ask", "The theatre's Q&A: ask the lecturer (everyone here reads it)");
   const handBtn = btn("✋ Raise hand", "Tell the lecturer you have a question");
   // Staff only: the screen's controls (a link to show, stop it for everyone), in the side panel.
@@ -113,7 +115,7 @@ export function mountTheatreUi(deps: {
   notesView.className = "md theatre-notes-view";
   const notesFoot = document.createElement("p");
   notesFoot.className = "settings-note";
-  notesFoot.textContent = "Kept in this browser only; nobody else sees them.";
+  notesFoot.textContent = "";
   notes.append(notesText, notesView, notesFoot);
   // Q&A: the questions so far, a box to ask, and (for staff) the raised hands.
   const qa = document.createElement("div");
@@ -163,20 +165,65 @@ export function mountTheatreUi(deps: {
   let unread = 0;
   let hasVideo = false;
 
-  try {
-    notesText.value = localStorage.getItem(NOTES_KEY) ?? "";
-  } catch {
-    // No storage: the notes still work for this visit.
-  }
+  // A member's notes are their My Room notebook (the user, 11/18: notes from a lecture end up in
+  // your room), saved a moment after typing stops; a guest's stay in this browser, as before.
   const renderNotes = (): void => void notesView.replaceChildren(renderMarkdown(notesText.value || "*Nothing yet.*"));
+  let saved = "";
+  let saveTimer = 0;
+  let loaded = false;
+  async function loadNotes(): Promise<void> {
+    const nb = deps.notebook();
+    if (!nb) {
+      try {
+        notesText.value = localStorage.getItem(NOTES_KEY) ?? "";
+      } catch {
+        // No storage: the notes still work for this visit.
+      }
+      notesFoot.textContent = "Kept in this browser only; nobody else sees them. Sign up to keep them in My Room.";
+      loaded = true;
+      return renderNotes();
+    }
+    notesText.disabled = true;
+    notesFoot.textContent = "Opening your notebook…";
+    try {
+      saved = notesText.value = await nb.load();
+      notesFoot.textContent = "Your My Room notebook: saved as you type, only you see it.";
+      loaded = true;
+    } catch {
+      notesFoot.textContent = "Your notebook couldn't be opened. Close and try again.";
+    }
+    notesText.disabled = !loaded;
+    renderNotes();
+  }
+  async function saveNotes(): Promise<void> {
+    window.clearTimeout(saveTimer);
+    const nb = deps.notebook();
+    if (!nb || !loaded || notesText.value === saved) return;
+    const text = notesText.value;
+    notesFoot.textContent = "Saving…";
+    const err = await nb.save(text);
+    if (err) {
+      notesFoot.textContent = err;
+      return;
+    }
+    saved = text;
+    notesFoot.textContent = `Saved to your My Room notebook · ${text.length}/5000`;
+  }
   notesText.addEventListener("input", () => {
     renderNotes();
-    try {
-      localStorage.setItem(NOTES_KEY, notesText.value);
-    } catch {
-      // Kept for this visit only.
+    if (!deps.notebook()) {
+      try {
+        localStorage.setItem(NOTES_KEY, notesText.value);
+      } catch {
+        // Kept for this visit only.
+      }
+      return;
     }
+    notesFoot.textContent = "…";
+    window.clearTimeout(saveTimer);
+    saveTimer = window.setTimeout(() => void saveNotes(), 900);
   });
+  notesText.addEventListener("blur", () => void saveNotes());
 
   function setBig(on: boolean): void {
     big = on && hasVideo;
@@ -186,20 +233,24 @@ export function mountTheatreUi(deps: {
     document.body.classList.toggle("theatre-big", big);
   }
   function setPanel(next: "notes" | "qa" | "screen" | null): void {
+    if (panel === "notes" && next !== "notes") void saveNotes();
     panel = next;
     side.hidden = !next;
     notes.hidden = next !== "notes";
     qa.hidden = next !== "qa";
     lect.hidden = next !== "screen";
-    sideTitle.textContent = next === "notes" ? "📝 My notes" : next === "screen" ? "📺 The big screen" : "💬 Q&A";
+    sideTitle.textContent = next === "notes" ? "📓 My notebook" : next === "screen" ? "📺 The big screen" : "💬 Q&A";
     notesBtn.setAttribute("aria-pressed", String(next === "notes"));
     askBtn.setAttribute("aria-pressed", String(next === "qa"));
     screenBtn.setAttribute("aria-pressed", String(next === "screen"));
     if (next === "screen") form?.querySelector("input")?.focus();
     document.body.classList.toggle("theatre-side-open", !!next);
     if (next === "notes") {
-      renderNotes();
-      notesText.focus();
+      // Fresh from the server each time (you may have written in My Room since).
+      loaded = false;
+      void loadNotes().then(() => {
+        if (panel === "notes") notesText.focus();
+      });
     }
     if (next === "qa") {
       unread = 0;
