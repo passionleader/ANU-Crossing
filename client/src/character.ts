@@ -14,7 +14,8 @@ import { buildPlayer, warm } from "./world.ts";
 import { CLOTH, DEFAULT_LOOK, HAIR, QA_HAT, SKIN, type Look } from "./lookpicker.ts";
 
 export type { Look };
-export type Motion = "idle" | "walk" | "run" | "sit";
+/** "lie" (on My Room's bed, the user 11/18) has no clip: the idle one, with the whole figure laid on its back. */
+export type Motion = "idle" | "walk" | "run" | "sit" | "lie";
 export type Gesture = "yes" | "no";
 /** Moves the pack has no clip for, posed from the bones each frame. */
 export type Act = "wave" | "dance";
@@ -28,7 +29,7 @@ export const CHARACTER = {
   height: 1.7,
   /** Extra turn so the model faces +z like the rest of the game. */
   yaw: 0,
-  clips: { idle: /^idle$/i, walk: /^walk$/i, run: /^sprint$/i, sit: /^sit$/i } as Record<Motion, RegExp>,
+  clips: { idle: /^idle$/i, walk: /^walk$/i, run: /^sprint$/i, sit: /^sit$/i } as Record<Exclude<Motion, "lie">, RegExp>,
   gestures: { yes: /^emote-yes$/i, no: /^emote-no$/i } as Record<Gesture, RegExp>,
 };
 
@@ -383,7 +384,7 @@ export class Avatar {
       this.mixer = new THREE.AnimationMixer(model);
       this.actions.clear();
       this.gestures.clear();
-      for (const motion of ["idle", "walk", "run", "sit"] as Motion[]) {
+      for (const motion of ["idle", "walk", "run", "sit"] as const) {
         const clip = t.clips.find((c) => CHARACTER.clips[motion].test(c.name));
         if (clip) this.actions.set(motion, this.mixer.clipAction(clip));
       }
@@ -395,7 +396,8 @@ export class Avatar {
         action.clampWhenFinished = false;
         this.gestures.set(g, action);
       }
-      this.actions.get(this.motion)?.play();
+      this.clip(this.motion)?.play();
+      this.laid();
       this.putHat();
       this.putPrint();
     });
@@ -430,12 +432,27 @@ export class Avatar {
   /** Blends to idle, walk or run over a fifth of a second. */
   setMotion(next: Motion): void {
     if (next === this.motion) return;
-    const from = this.actions.get(this.motion);
-    const to = this.actions.get(next);
+    const from = this.clip(this.motion);
+    const to = this.clip(next);
     this.motion = next;
-    if (!to) return;
+    this.laid();
+    if (!to || to === from) return;
     to.reset().fadeIn(0.2).play();
     from?.fadeOut(0.2);
+  }
+
+  /** The clip a motion plays: lying is standing still, laid down. */
+  private clip(m: Motion): THREE.AnimationAction | undefined {
+    return this.actions.get(m === "lie" ? "idle" : m);
+  }
+
+  /** Lying: the figure (model or its stand-in) tipped onto its back, head toward the group's -z. */
+  private laid(): void {
+    const body = this.model ?? this.fallback;
+    const lie = this.motion === "lie";
+    body.rotation.x = lie ? -Math.PI / 2 : 0;
+    // Tipped about its feet, it would lie with its feet at the spot: lift the middle there instead.
+    body.position.z = lie ? CHARACTER.height / 2 : 0;
   }
 
   /** Plays a nod or a head shake over whatever the legs are doing. */
@@ -443,11 +460,11 @@ export class Avatar {
     const a = this.gestures.get(g);
     if (!a) return;
     a.reset().setEffectiveWeight(1).fadeIn(0.1).play();
-    const base = this.actions.get(this.motion);
+    const base = this.clip(this.motion);
     base?.fadeOut(0.1);
     const back = (): void => {
       a.fadeOut(0.2);
-      this.actions.get(this.motion)?.reset().fadeIn(0.2).play();
+      this.clip(this.motion)?.reset().fadeIn(0.2).play();
       this.mixer?.removeEventListener("finished", back);
     };
     this.mixer?.addEventListener("finished", back);

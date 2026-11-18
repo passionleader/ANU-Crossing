@@ -222,7 +222,7 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
         if (p.id === "sofa") box.top = 0.5;
         colliders.push(box);
       }
-      // Sit at the desk (on its chair) or on the sofa; lie... well, sit on the bed's edge.
+      // Sit at the desk (on its chair) or on the sofa; lie on the bed.
       const turn = (p.turn * Math.PI) / 2;
       const at = (lx: number, lz: number): { x: number; z: number } => ({ x: p.x + lx * Math.cos(turn) + lz * Math.sin(turn), z: p.z - lx * Math.sin(turn) + lz * Math.cos(turn) });
       if (p.id === "desk") {
@@ -234,7 +234,8 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
       // The bookcase holds your saved notes (the mailbox's Saved tab), wherever it stands.
       if (p.id === "bookcase") spots.push({ ...at(0, 0.85), id: "home:shelf", label: "The bookcase · your saved notes" });
       if (p.id === "sofa") for (const lx of [-0.45, 0.45]) seats!.push({ ...at(lx, 0.1), rot: turn, y: 0.42 });
-      if (p.id === "bed") seats!.push({ ...at(0, 0.9), rot: turn + Math.PI / 2, y: 0.55 });
+      // Lie on the bed, head on the pillow (the user, 11/18): the middle of the mattress, facing up.
+      if (p.id === "bed") seats!.push({ ...at(0, 0.05), rot: turn, y: 0.6, lie: true });
     }
   }
 

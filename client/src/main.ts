@@ -2903,6 +2903,8 @@ function jump(): void {
 
 let mySeat: { id: string; seat: Seat } | null = null;
 const SEAT_RANGE = 1.1;
+/** A bed (2.2 m long) is lain on from its side or foot. */
+const BED_RANGE = 1.9;
 // The "sit" clip bends the legs and drops the hips to about 7 cm above the
 // feet: lift the figure so the hips are on the seat, and back a little so
 // the knees, not the bottom, are over the front edge.
@@ -2910,6 +2912,8 @@ const HIP_DROP = 0.07;
 const SEAT_BACK = 0.18;
 /** Where a seated figure stands: on the seat, eased back from its front edge. */
 function seatedAt(seat: Seat): THREE.Vector3 {
+  // Lying: the figure's middle on the mattress (character.ts lays it about there).
+  if (seat.lie) return new THREE.Vector3(seat.x, seat.y, seat.z);
   return new THREE.Vector3(seat.x - Math.sin(seat.rot) * SEAT_BACK, Math.max(0, seat.y - HIP_DROP), seat.z - Math.cos(seat.rot) * SEAT_BACK);
 }
 
@@ -2935,8 +2939,11 @@ function standUp(): void {
   // Step out the way the seat faces. Left on the seat, you were inside the
   // sofa's footprint, and pushing out of it could put you behind the sofa.
   const { seat } = mySeat;
-  const x = seat.x + Math.sin(seat.rot) * STAND_STEP;
-  const z = seat.z + Math.cos(seat.rot) * STAND_STEP;
+  // Off a bed: out over its side (its +x, a little past half its width), not along it.
+  const out = seat.lie ? seat.rot + Math.PI / 2 : seat.rot;
+  const step = seat.lie ? 1.15 : STAND_STEP;
+  const x = seat.x + Math.sin(out) * step;
+  const z = seat.z + Math.cos(out) * step;
   // On the ground there (a theatre's tier, not the floor under it, which would push you off the step).
   player.position.set(x, space ? groundAt(x, z, space.colliders) : 0, z);
   mySeat = null;
@@ -2948,7 +2955,8 @@ function seatNear(): { index: number; d: number } | null {
   let best: { index: number; d: number } | null = null;
   space?.seats?.forEach((seat, index) => {
     const d = Math.hypot(player.position.x - seat.x, player.position.z - seat.z);
-    if (d > SEAT_RANGE || (best && best.d <= d)) return;
+    // A bed's spot is the middle of the mattress: reachable from anywhere along its side.
+    if (d > (seat.lie ? BED_RANGE : SEAT_RANGE) || (best && best.d <= d)) return;
     const taken = [...others.values()].some((o) => o.seat === seat);
     if (!taken) best = { index, d };
   });
@@ -3174,10 +3182,10 @@ window.addEventListener("keydown", (e) => {
 
 /** What E would do now, in words, or null. */
 function useLabel(): string | null {
-  if (mySeat) return "Stand up";
+  if (mySeat) return mySeat.seat.lie ? "Get up" : "Stand up";
   const t = nearestTarget();
   if (!t) return null;
-  if (t.kind === "seat") return "Sit down";
+  if (t.kind === "seat") return space?.seats?.[t.index]?.lie ? "Lie down" : "Sit down";
   if (t.kind === "door") return t.door.secret ? null : t.door.label;
   if (t.kind === "link" || t.kind === "spot") return t.label;
   return t.here.length > 1 ? `Pick one of ${t.here.length} notes here` : `Read ${t.author}'s note`;
@@ -3251,7 +3259,7 @@ function update(dt: number, now: number): void {
         player.rotation.y += turn * Math.min(1, dt * 14);
       }
     }
-    me.setMotion(mySeat ? "sit" : moving ? (running ? "run" : "walk") : "idle");
+    me.setMotion(mySeat ? (mySeat.seat.lie ? "lie" : "sit") : moving ? (running ? "run" : "walk") : "idle");
     // The ground is the floor, or the top of a kerb you're over: land on it,
     // and step off its edge to drop back down.
     const ground = groundAt(player.position.x, player.position.z, space.colliders);
@@ -3277,12 +3285,12 @@ function update(dt: number, now: number): void {
     const target = found?.kind === "door" && found.door.secret ? null : found;
     showBadges(target);
     hintEl.hidden = !target && !mySeat;
-    if (mySeat && !target) hintEl.textContent = `${touchScreen.matches ? "Use" : "E"} · Stand up (or just walk)`;
+    if (mySeat && !target) hintEl.textContent = `${touchScreen.matches ? "Use" : "E"} · ${mySeat.seat.lie ? "Get up" : "Stand up"} (or just walk)`;
     if (target) {
       const key = touchScreen.matches ? "Use" : "E";
       hintEl.textContent =
         target.kind === "seat"
-          ? `${key} · Sit down`
+          ? `${key} · ${space.seats?.[target.index]?.lie ? "Lie down" : "Sit down"}`
           : target.kind === "door"
           ? `${key} · ${target.door.label}`
           : target.kind === "link" || target.kind === "spot"
@@ -3331,7 +3339,7 @@ function update(dt: number, now: number): void {
     } else view.group.position.lerp(view.target, ease);
     const step = Math.hypot(view.group.position.x - before.x, view.group.position.z - before.z) / Math.max(dt, 1e-3);
     view.speed += (step - view.speed) * Math.min(1, dt * 8);
-    view.avatar.setMotion(view.seat ? "sit" : motionFor(view.speed));
+    view.avatar.setMotion(view.seat ? (view.seat.lie ? "lie" : "sit") : motionFor(view.speed));
     view.avatar.update(dt);
     // Turn the short way round, not through a full spin.
     const d = Math.atan2(Math.sin(view.rot - view.group.rotation.y), Math.cos(view.rot - view.group.rotation.y));

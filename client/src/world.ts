@@ -112,6 +112,8 @@ export interface Seat {
   z: number;
   rot: number;
   y: number;
+  /** A bed: you lie on it (on your back, head toward rot's back, -z), not sit (My Room, the user 11/18). */
+  lie?: boolean;
 }
 
 /** The nearest point that lies in one of `areas`, written back into `pos`. */
