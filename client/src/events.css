@@ -40,10 +40,8 @@ body.in-room #events-btn { display: none; }
 }
 body:has(#toast:not(:empty)) #events-panel { top: 100px; }
 
-/* Coming up, on the join screen (a small card under the tips) and in the Campus Guide. */
+/* Coming up, in the Campus Guide (no longer on the join screen, the user 11/18). */
 .ev-coming h3 { margin: 0 0 4px; font-size: 0.85rem; color: #6b3f1d; }
-#join.si-root .ev-coming { margin-top: 14px; font-style: normal; text-align: left; }
-#join.si-root .si-compact .ev-coming { display: none; }
 .guide-entry.ev-coming { padding: 10px 12px; }
 
 /* The banner for an event that is on in the space you're in: top middle, under the round buttons' row. */

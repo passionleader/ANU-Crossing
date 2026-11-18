@@ -3,7 +3,7 @@ import { ApiError, createEvent, getEvents, removeEvent, type EventList, type Eve
 import type { SpaceId } from "./world.ts";
 
 // The events timetable: a member puts on an event (title, place, start in Canberra time, length)
-// and everyone sees it as "Coming up" on the join screen and in the Campus Guide, as a banner in
+// and everyone sees it as "Coming up" in the Campus Guide, as a banner in
 // its space while it's on, as a small marker on the minimap, and in a list from the "Events"
 // button. The server owns every rule (server/events.ts); this only asks and draws. Nothing is
 // pushed to other screens: the list is fetched again every minute.
@@ -83,7 +83,7 @@ function line(e: EventView): HTMLLIElement {
   return li;
 }
 
-/** A "Coming up" block that keeps itself current while it is on the page (the join screen, the Campus Guide). */
+/** A "Coming up" block that keeps itself current while it is on the page (the Campus Guide). */
 export function comingUpBlock(): HTMLElement {
   const box = document.createElement("section");
   box.className = "ev-coming";
