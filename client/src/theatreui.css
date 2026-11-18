@@ -1,0 +1,67 @@
+/* The lecture theatre (theatreui.ts): the player laid over the 3D screen, its buttons along the
+   bottom, and a side panel for notes or Q&A. Big view fills the window; Escape goes back. */
+#theatre-screen { position: fixed; z-index: 3; pointer-events: none; overflow: hidden; }
+#theatre-screen[hidden] { display: none; }
+#theatre-screen #room-screen { width: 100%; height: 100%; padding: 0; gap: 0; overflow: hidden; }
+#theatre-screen .rs-video { height: 100%; gap: 0; }
+#theatre-screen .rs-stage { flex: 1; aspect-ratio: auto; border-radius: 0; background: transparent; pointer-events: auto; }
+#theatre-screen .rs-shares, #theatre-screen .rs-form, #theatre-screen .rs-buttons, #theatre-screen .rs-status { display: none; }
+#theatre-screen .rs-status-x { display: block; position: absolute; left: 8px; bottom: 8px; margin: 0; padding: 4px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #fff; }
+#theatre-screen.is-big { inset: 12px !important; width: auto !important; height: auto !important; z-index: 32; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); background: #000; }
+body.theatre-side-open #theatre-screen.is-big { right: calc(min(380px, 92vw) + 24px) !important; }
+.theatre-big-close { position: absolute; top: 10px; right: 10px; z-index: 3; min-height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.9); color: #2a1e12; font: 700 0.9rem system-ui, sans-serif; cursor: pointer; pointer-events: auto; }
+.theatre-big-close[hidden] { display: none; }
+
+#theatre-bar { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 31; display: flex; gap: 8px; padding: 6px; border-radius: 999px; background: rgba(252, 248, 236, 0.94); box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3); max-width: calc(100vw - 24px); }
+#theatre-bar[hidden] { display: none; }
+#theatre-bar button { position: relative; min-height: 44px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(107, 63, 29, 0.1); color: var(--ink, #3b2a12); font: 700 0.9rem system-ui, sans-serif; cursor: pointer; white-space: nowrap; }
+#theatre-bar button[aria-pressed="true"], #theatre-bar button.is-on { background: var(--accent, #6b3f1d); color: #fff; }
+.theatre-count { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #c0392b; color: #fff; font: 700 11px/18px system-ui, sans-serif; }
+.theatre-count[hidden] { display: none; }
+
+#theatre-side { position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 33; width: min(380px, 92vw); display: flex; flex-direction: column; gap: 8px; padding: 12px; box-sizing: border-box; border-radius: 14px; background: var(--paper, #fcf8ec); color: var(--ink, #3b2a12); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.3); }
+#theatre-side[hidden], #theatre-side [hidden] { display: none !important; }
+.theatre-side-head { display: flex; align-items: center; gap: 8px; }
+.theatre-side-head h2 { flex: 1; margin: 0; font-size: 1.1rem; }
+.theatre-notes, .theatre-qa { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.theatre-notes textarea { flex: 1 1 45%; min-height: 120px; resize: none; padding: 10px; border-radius: 10px; border: 1px solid var(--accent, #6b3f1d); background: #fffdf7; color: var(--ink); font: 14px/1.5 ui-monospace, Menlo, Consolas, monospace; }
+.theatre-notes-view { flex: 1 1 45%; overflow-y: auto; padding: 4px 10px; border-radius: 10px; background: rgba(255, 255, 255, 0.55); overflow-wrap: anywhere; }
+.theatre-notes .settings-note { margin: 0; }
+.theatre-hands { padding: 8px; border-radius: 10px; background: #fff4e0; }
+.theatre-hands-title { margin: 0 0 4px; font-weight: 700; font-size: 0.88rem; }
+.theatre-hand { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+.theatre-hand button { margin-left: auto; min-height: 32px; padding: 0 10px; border: 1px solid var(--accent, #6b3f1d); border-radius: 8px; background: #fffdf7; color: var(--ink); cursor: pointer; }
+.theatre-qlist { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 6px; border-radius: 10px; background: rgba(255, 255, 255, 0.45); }
+.theatre-q { padding: 6px 10px; border-radius: 10px; background: var(--card, #f5efdf); font-size: 0.9rem; overflow-wrap: anywhere; }
+.theatre-q b { display: block; font-size: 0.74rem; opacity: 0.8; }
+.theatre-q small { font-weight: 400; opacity: 0.7; }
+.theatre-q.is-mine { background: #efe2cc; }
+.theatre-q.is-staff { background: #e3ecf6; border-left: 4px solid #2f5d8a; }
+.theatre-ask { display: flex; gap: 6px; }
+.theatre-ask input { flex: 1; min-width: 0; min-height: 44px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--accent, #6b3f1d); background: #fffdf7; color: var(--ink); font: 16px system-ui, sans-serif; }
+.theatre-ask button { min-height: 44px; padding: 0 14px; border-radius: 8px; }
+
+/* On a phone: the side panel is the bottom half, the bar sits above the joystick row. */
+@media (max-width: 700px), (pointer: coarse) {
+  #theatre-side { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 55vh; border-radius: 14px 14px 0 0; }
+  #theatre-bar { bottom: calc(150px + env(safe-area-inset-bottom, 0px)); gap: 4px; padding: 4px; }
+  #theatre-bar button { padding: 0 9px; font-size: 0.78rem; }
+  body.theatre-side-open #theatre-bar { display: none; }
+  #theatre-screen.is-big { inset: 0 !important; border-radius: 0; }
+  body.theatre-side-open #theatre-screen.is-big { right: 0 !important; bottom: 55vh !important; }
+}
+
+/* The lecturer's screen controls in the side panel (the player's own form and buttons, moved). */
+.theatre-lect { display: flex; flex-direction: column; gap: 8px; }
+.theatre-lect .rs-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.theatre-lect .rs-buttons button { min-height: 40px; padding: 0 12px; border-radius: 8px; }
+.theatre-lect .rs-status { margin: 0; font-size: 0.88rem; }
+#theatre-bar button[hidden] { display: none; }
+/* In big view the buttons stay over the bottom edge, so Ask or Raise hand is one press away. */
+body.theatre-big #theatre-bar { z-index: 34; }
+#theatre-screen.is-big { bottom: 76px !important; }
+@media (max-width: 700px), (pointer: coarse) {
+  #theatre-screen.is-big { bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important; }
+  body.theatre-big #theatre-bar { bottom: calc(8px + env(safe-area-inset-bottom, 0px)); }
+}
+.theatre-qlist:empty::before { content: attr(data-empty); padding: 8px; opacity: 0.7; font-size: 0.88rem; }

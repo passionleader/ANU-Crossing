@@ -58,6 +58,11 @@ export interface SpaceDef {
   /** Camera offset from the player: further back outside, closer indoors. */
   camera: THREE.Vector3;
   /**
+   * A point the camera keeps half an eye on (the lecture theatre's screen): it looks between you and
+   * it, so what the room faces stays in the picture wherever you stand. Unset: it looks at you.
+   */
+  focus?: THREE.Vector3;
+  /**
    * Where a wall closes the space to the south (+z): walking toward it, the
    * camera rises and leans in, looking down on you at the edge `z` (where
    * walking stops). `from` is where the rise starts.

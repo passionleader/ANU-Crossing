@@ -82,6 +82,7 @@ import {
   putMyRoom,
 } from "./api.ts";
 import { mountMyRoomUi } from "./myroomui.ts";
+import { mountTheatreUi, type Question } from "./theatreui.ts";
 import { homeOwnerOf, type HomeSpace, type Layout } from "./spaces/myroom.ts";
 import { mountChat } from "./chatui.ts";
 import { mountJoinNow } from "./joinnow.ts";
@@ -366,6 +367,14 @@ guideBtn.addEventListener("click", () => guide.open());
 // Everyone's own room (spaces/myroom.ts, server/myroom.ts): a round 🏠 button left of the guide takes
 // you there from anywhere (back out, you're by the residence's door on the north road, which also
 // leads in). Inside, the room window has its owner's notebook, calendar and furniture editor.
+// The lecture theatre's screen, buttons and Q&A (theatreui.ts; server/theatre.ts).
+const theatreUi = mountTheatreUi({
+  send: (msg) => !!net && net.raw(msg),
+  isStaff: () => isStaff(session),
+  me: () => session?.name ?? "",
+  say: (msg) => toast(msg),
+  notSent: () => notSent(),
+});
 const myRoomBtn = document.createElement("button");
 myRoomBtn.type = "button";
 myRoomBtn.id = "myroom-btn";
@@ -1652,7 +1661,7 @@ for (const id of ["class-picker", "webview", "dog-prompt", "cafe-guide", "hub-ca
 }
 
 const busy = (): boolean =>
-  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen() || myRoomUi.isOpen() || !guestRoomNotice.hidden;
+  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen() || myRoomUi.isOpen() || !guestRoomNotice.hidden || theatreUi.isTyping();
 const keyGuide = mountKeyGuide();
 installDialogKeys();
 
@@ -1933,7 +1942,10 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
     window.setTimeout(() => fade.classList.remove("on"), 260);
   }
   mySeat = null;
+  const wasTheatre = space?.id === "theatre";
   space = getSpace(id);
+  // The theatre's screen and buttons come and go with it (the server sends how it stands on "enter").
+  if (wasTheatre !== (id === "theatre")) theatreUi.shown(id === "theatre" && playing);
   doorLabels.length = 0;
   space.group.traverse((o) => {
     if (o instanceof CSS2DObject && o.element.classList.contains("door-label")) doorLabels.push(o);
@@ -2201,6 +2213,7 @@ function showJoin(message = ""): void {
   touch.hidden = true;
   myRoomBtn.hidden = true;
   myRoomUi.close();
+  theatreUi.shown(false);
   guestRoomNotice.hidden = true;
   hintEl.hidden = true;
 }
@@ -2426,6 +2439,15 @@ function goOnline(token: string): void {
     },
     homeLayout(layout) {
       homeSpace(space?.id)?.setLayout(layout);
+    },
+    theatre(m) {
+      if (space?.id !== "theatre") return;
+      if (m.kind === "theatre") theatreUi.theatre(m as unknown as { video: VideoView | null; hands: string[]; questions: Question[] });
+      else if (m.kind === "theatre-video") theatreUi.video((m.video as VideoView | null) ?? null);
+      else if (m.kind === "theatre-refused") theatreUi.refused(String(m.reason), (m.video as VideoView | null) ?? null);
+      else if (m.kind === "theatre-hands") theatreUi.hands((m.hands as string[]) ?? []);
+      else if (m.kind === "theatre-hand-up" && typeof m.name === "string") theatreUi.handUp(m.name);
+      else if (m.kind === "theatre-ask") theatreUi.ask(m.question as Question, m.staff === true);
     },
     video(v) {
       const was = lastVideo;
@@ -3212,6 +3234,7 @@ function update(dt: number, now: number): void {
     if (t.obj.visible !== near) t.obj.visible = near;
   }
   minimap.draw(player.position.x, player.position.z, player.rotation.y);
+  theatreUi.frame(camera, stage);
   for (const view of others.values()) {
     const before = view.group.position.clone();
     // Walking: where their updates say they were a moment ago (smoothing.ts), so an
@@ -3266,6 +3289,7 @@ function update(dt: number, now: number): void {
   if (reduceMotion()) camera.position.copy(desired);
   else camera.position.lerp(desired, 1 - Math.exp(-8 * dt));
   lookTarget.copy(player.position).setY(space.outdoor ? 1.8 : 1);
+  if (space.focus) lookTarget.lerp(space.focus, 0.55);
   camera.lookAt(lookTarget);
   skyDome.position.copy(camera.position);
   // High quality (plan 35a): the clouds drift, the dome turning slowly about

@@ -100,6 +100,8 @@ export interface NetHandlers {
   video(video: VideoView | null): void;
   /** The owner of the room we're in rearranged it (My Room). */
   homeLayout(layout: Layout): void;
+  /** The lecture theatre (server/theatre.ts): how it stands on coming in, then each change. */
+  theatre(msg: { kind: string; [k: string]: unknown }): void;
   /** Our video action wasn't taken (not a YouTube or Vimeo link, too quick…); the video as it stands. */
   videoRefused(reason: string, video: VideoView | null): void;
   /** The room's timer was started, paused, moved on or reset (null: none). */
@@ -166,6 +168,8 @@ export interface Net {
   knock(name: string): void;
   /** The room's shared video: "set" (with `url`), "play", "pause", "seek" (with `pos`) or "clear". */
   video(op: string, extra?: Record<string, unknown>): boolean;
+  /** Sends one raw message (the lecture theatre's actions: theatreui.ts). */
+  raw(msg: Record<string, unknown>): boolean;
   /** Asks a games table for something: "look", "pick" (a game), "join", "start", "answer" (a pick) or "leave". */
   table(table: string, op: string, extra?: Record<string, unknown>): boolean;
   /** Invites someone into the counselling room we're in. */
@@ -241,6 +245,7 @@ export function connect(token: string, on: NetHandlers): Net {
             return on.roomOpen(m.space as SpaceId, m.x as number, m.z as number, m.room as RoomState, m.lines as RoomLine[], m.players as RemotePlayer[], (m.pad as { text: string; by: string | null }) ?? { text: "", by: null }, (m.timer as RoomTimer | null) ?? null, (m.video as VideoView | null) ?? null);
           if (m.kind === "video") return on.video((m.video as VideoView | null) ?? null);
           if (m.kind === "home-layout" && m.layout && typeof m.layout === "object") return on.homeLayout(m.layout as Layout);
+          if (typeof m.kind === "string" && (m.kind === "theatre" || m.kind.startsWith("theatre-"))) return on.theatre(m as { kind: string });
           if (m.kind === "video-refused") return on.videoRefused(String(m.reason), (m.video as VideoView | null) ?? null);
           if (m.kind === "timer") return on.timer((m.timer as RoomTimer | null) ?? null);
           if (m.kind === "pad") return on.pad(m.text as string, m.by as string);
@@ -323,6 +328,9 @@ export function connect(token: string, on: NetHandlers): Net {
     },
     video(op, extra) {
       return sendNow({ t: "action", kind: "video", op, ...extra });
+    },
+    raw(msg) {
+      return sendNow(msg);
     },
     table(table, op, extra) {
       return sendNow({ t: "action", kind: "table", table, op, ...extra });

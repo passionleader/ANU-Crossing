@@ -49,6 +49,8 @@ export const SPACES: Record<string, Space> = {
   poop: { label: "a small room", halfX: 9, halfZ: 6.75, spawn: { x: 6, z: -4.5 } },
   // In the O'Donoghue centre's ground floor, across the north road (plan 111; client/src/spaces/careers.ts).
   careers: { label: "Career Hub", halfX: 15, halfZ: 10, spawn: { x: 0, z: 7.6 } },
+  // The lecture theatre (the user, 11/18), through the passage under the north row (client/src/spaces/theatre.ts).
+  theatre: { label: "Lecture theatre", halfX: 13, halfZ: 12, spawn: { x: 0, z: 10.5 } },
 };
 
 /** Every classroom's bounds (client/src/spaces/classroom.ts). */

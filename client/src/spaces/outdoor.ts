@@ -291,6 +291,9 @@ export function buildOutdoor(): SpaceDef {
       // My Room (the user, 11/18): the residence's door at the west end of the north row; it takes
       // each person to their own room (main.ts resolves "home"). Same spot as server/spaces.ts HOME_DOOR.
       { x: -48.6, z: -38.9, label: "Enter the residence (My Room)", to: "home", arrive: { x: -3.4, z: 3.4 } },
+      // The lecture theatre (the user, 11/18): through the passage under the north row, between the
+      // pale-brick building and the O'Donoghue centre (backdrop.ts, x 4..10).
+      { x: 7, z: -38.9, label: "Through the passage to the lecture theatre", to: "theatre", arrive: { x: -10.4, z: 10.4 } },
       // An easter egg: an unmarked staff door at the far end of Lab Coffee.
       { x: 24.5, z: -21, label: "Staff only", to: "poop", arrive: { x: 6, z: -4.5 }, secret: true },
       // E at the end of the bridge: you stop 3 m short of the library, so it never fades.
