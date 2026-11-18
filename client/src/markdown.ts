@@ -120,7 +120,7 @@ function blocks(lines: string[], base: number, opts: MarkdownOptions): DocumentF
       const list = mark(document.createElement(marker === BULLET ? "ul" : "ol"), at);
       while (i < lines.length && marker.test(lines[i]!)) {
         const li = mark(document.createElement("li"), i);
-        li.append(inline(lines[i++]!.replace(marker, "")));
+        li.append(...item(lines[i++]!.replace(marker, "")));
         list.append(li);
       }
       out.append(list);
@@ -141,6 +141,17 @@ function blocks(lines: string[], base: number, opts: MarkdownOptions): DocumentF
     out.append(p);
   }
   return out;
+}
+
+/** A list item's text; "[ ] " or "[x] " in front draws a box, ticked or not (a to-do list, read only). */
+function item(text: string): Node[] {
+  const m = /^\[( |x|X)\]\s+/.exec(text);
+  if (!m) return [inline(text)];
+  const box = document.createElement("span");
+  box.className = "md-task";
+  box.textContent = m[1] === " " ? "☐ " : "☑ ";
+  box.setAttribute("aria-label", m[1] === " " ? "not done" : "done");
+  return [box, inline(text.slice(m[0].length))];
 }
 
 /** A list whose items may sit deeper by indent (two or more spaces, or a tab), each deeper run a list inside its item. */
@@ -174,7 +185,7 @@ function nestedList(run: string[], base: number, opts: MarkdownOptions): HTMLEle
       }
       const li = document.createElement("li");
       if (opts.lines) li.dataset.line = String(base + i);
-      li.append(inline(l.replace(marker, "")));
+      li.append(...item(l.replace(marker, "")));
       list.append(li);
       i++;
     }

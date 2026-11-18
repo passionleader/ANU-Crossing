@@ -386,11 +386,13 @@ myRoomBtn.hidden = true;
 document.body.append(myRoomBtn);
 const myRoomUi = mountMyRoomUi({
   async load() {
-    if (!session) return null;
+    if (!session) return "Join first.";
     try {
       return await getMyRoom(session.token);
-    } catch {
-      return null;
+    } catch (err) {
+      // A signed-out or removed account never loads by waiting: say so.
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) return "Your sign-in has expired. Sign out and sign in again to open your room.";
+      return "Your room couldn't be loaded. Try again in a moment.";
     }
   },
   async save(part) {
@@ -1305,6 +1307,7 @@ const roomPanel = mountRoomPanel({
   onNotice: (msg) => popup(msg),
   onHome: (what) => void myRoomUi.open(what),
   isMine: () => !!space && !!session && homeOwnerOf(space.id) === session.name.toLowerCase(),
+  isGuest: () => !!session && !isMember(session),
   maxLength: 200,
 });
 /** The tab opened for the room's whiteboard, waiting for its link. */
@@ -1930,7 +1933,7 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
     roomScreen.reset();
     watchPrompt.hide();
     lastVideo = null;
-    document.body.classList.remove("in-room");
+    document.body.classList.remove("in-room", "in-home");
     if (playing) chat.show();
   }
 
@@ -2201,7 +2204,7 @@ function showJoin(message = ""): void {
   roomScreen.reset();
   watchPrompt.hide();
   lastVideo = null;
-  document.body.classList.remove("in-room");
+  document.body.classList.remove("in-room", "in-home");
   net?.close();
   net = null;
   for (const id of [...others.keys()]) removeOther(id);
@@ -2424,6 +2427,7 @@ function goOnline(token: string): void {
       players.forEach(upsertOther);
       chat.hide();
       document.body.classList.add("in-room");
+      document.body.classList.toggle("in-home", !!homeOwnerOf(id));
       // Its voice, listening (the menu's Mic switch makes you heard).
       void voice.join(false);
       roomPanel.setVoice(false);

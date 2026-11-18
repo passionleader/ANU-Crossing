@@ -23,6 +23,8 @@ export interface MyRoomData {
   guest: boolean;
 }
 
+/** A few of ANU's titles run past the 80 characters a calendar title may have: shortened, not refused. */
+const short = (t: string): string => (t.length > 80 ? `${t.slice(0, 79).trimEnd()}…` : t);
 const ACADEMIC = (academic.events as Omit<CalEntry, "id">[]).slice().sort((a, b) => a.date.localeCompare(b.date));
 const KIND_LABEL: Record<CalEntry["kind"], string> = { mine: "Mine", teaching: "Teaching", census: "Census", exam: "Exams", break: "Break", holiday: "Public holiday", other: "ANU" };
 const iso = (y: number, m: number, d: number): string => `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
@@ -59,7 +61,8 @@ function dialog(id: string, titleText: string): { root: HTMLDivElement; card: HT
 }
 
 export function mountMyRoomUi(deps: {
-  load(): Promise<MyRoomData | null>;
+  /** Your room, or why it couldn't be loaded (a sentence to show). */
+  load(): Promise<MyRoomData | string>;
   save(part: Partial<Pick<MyRoomData, "notebook" | "calendar" | "layout">>): Promise<string | null>;
   /** The furniture changed in the editor: shown at once, before (and whether or not) it's saved. */
   preview(layout: Layout): void;
@@ -192,6 +195,9 @@ export function mountMyRoomUi(deps: {
       // Your own events first: a long exam period mustn't hide the day you wrote something on.
       const lead = on.find((e) => e.kind === "mine") ?? on.find((e) => !e.end) ?? on[0];
       if (lead) b.classList.add(`is-${lead.kind}`);
+      else b.classList.add("no-event");
+      // A period (an exam fortnight, a break) only tints its days, so your own events still stand out.
+      if (lead?.end && lead.kind !== "mine") b.classList.add("in-span");
       if (day === todayIso()) b.classList.add("is-today");
       if (day === picked) b.classList.add("is-picked");
       b.textContent = String(d);
@@ -260,7 +266,7 @@ export function mountMyRoomUi(deps: {
       const box = document.createElement("input");
       box.type = "checkbox";
       box.value = `${e.date}|${e.title}`;
-      const already = have.has(box.value);
+      const already = have.has(`${e.date}|${short(e.title)}`);
       box.disabled = already;
       box.checked = false;
       const text = document.createElement("span");
@@ -291,7 +297,12 @@ export function mountMyRoomUi(deps: {
     if (!data) return;
     const ticked = [...importList.querySelectorAll<HTMLInputElement>("input:checked")].map((b) => b.value);
     if (!ticked.length) return status(calFoot, "Tick the dates to copy first.");
-    const picks = ACADEMIC.filter((e) => ticked.includes(`${e.date}|${e.title}`)).map((e) => ({ ...e, id: crypto.randomUUID() }));
+    const have = new Set(data.calendar.map((e) => `${e.date}|${e.title}`));
+    const picks = ACADEMIC.filter((e) => ticked.includes(`${e.date}|${e.title}`))
+      .map((e) => ({ ...e, title: short(e.title), id: crypto.randomUUID() }))
+      .filter((e) => !have.has(`${e.date}|${e.title}`));
+    if (!picks.length) return status(calFoot, "Those dates are in your calendar already.");
+    if (data.calendar.length + picks.length > 200) return status(calFoot, `That's more than 200 dates in all: untick ${data.calendar.length + picks.length - 200} first.`);
     void saveCalendar([...data.calendar, ...picks], `Copied ${picks.length} date${picks.length > 1 ? "s" : ""} from ANU's calendar.`).then((ok) => ok && drawImport());
   });
 
@@ -535,8 +546,9 @@ export function mountMyRoomUi(deps: {
   return {
     async open(what) {
       close();
-      data = await deps.load();
-      if (!data) return deps.say("Your room couldn't be loaded. Try again in a moment.");
+      const got = await deps.load();
+      if (typeof got === "string") return deps.say(got);
+      data = got;
       if (what === "notebook") {
         nbText.value = data.notebook;
         nbRender();

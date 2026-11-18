@@ -20,6 +20,8 @@ import type { RoomTimer } from "./net.ts";
 import { ACCEPT, MAX_FILE_BYTES, isImage, sizeLabel } from "./uploads.ts";
 import { ding, sfx } from "./sfx.ts";
 
+const LAST_OUT_TEXT = "You're the last one here. When you leave, this room's chat, shared notes and files are cleared for good (unless you saved them).";
+
 export interface RoomInfo {
   title: string;
   kind: "counselling" | "team" | "home";
@@ -86,6 +88,8 @@ export function mountRoomPanel(opts: {
   onHome(what: "notebook" | "calendar" | "furniture"): void;
   /** Whether the room shown is the viewer's own (My Room's own items show only then). */
   isMine(): boolean;
+  /** A guest's own room is cleared when they leave it (server/myroom.ts guestRoom). */
+  isGuest(): boolean;
   maxLength: number;
 }): {
   open(info: RoomInfo, history: RoomLine[], timer?: RoomTimer | null): void;
@@ -238,6 +242,12 @@ export function mountRoomPanel(opts: {
     addItem("📅", "My calendar", "Your dates, and ANU's academic dates you copy in", () => opts.onHome("calendar")),
     addItem("🪑", "Arrange furniture", "Move, turn and recolour the furniture, the walls and the floor", () => opts.onHome("furniture")),
   ];
+  // In your own room the meeting-room tools wait behind one button, so the room's own things come first.
+  const toolsToggle = document.createElement("button");
+  toolsToggle.type = "button";
+  toolsToggle.className = "room-tools-toggle";
+  toolsToggle.setAttribute("aria-expanded", "false");
+  items.append(toolsToggle);
   const chatItem = addItem(
     "💬",
     "Chat",
@@ -267,6 +277,20 @@ export function mountRoomPanel(opts: {
   );
   addItem("📂", "My saved chats and notes", "Read what you've saved (yours only, 30 days)", () => opts.onSaved());
   addItem("❓", "Help", "How rooms work, in the Campus Guide", () => opts.onHelp());
+  /** The meeting-room tools: everything after the toggle. */
+  const toolItems = [...items.children].slice([...items.children].indexOf(toolsToggle) + 1) as HTMLElement[];
+  let toolsOpen = false;
+  let homeMenu = false;
+  function drawTools(): void {
+    toolsToggle.hidden = !homeMenu;
+    toolsToggle.textContent = toolsOpen ? "▾ Fewer room tools" : "▸ Room tools: chat, focus timer, mic, whiteboard, video…";
+    toolsToggle.setAttribute("aria-expanded", String(toolsOpen));
+    for (const el of [timerBox, ...toolItems]) el.classList.toggle("is-folded", homeMenu && !toolsOpen);
+  }
+  toolsToggle.addEventListener("click", () => {
+    toolsOpen = !toolsOpen;
+    drawTools();
+  });
   // Last on the menu: leaving (the user's call, 10/30), the same as walking
   // out by the door, so the last one out is warned first.
   const leaveBtn = document.createElement("button");
@@ -384,8 +408,7 @@ export function mountRoomPanel(opts: {
   lastOutTitle.textContent = "Leave the room?";
   const lastOutText = document.createElement("p");
   lastOutText.id = "room-last-out-text";
-  lastOutText.textContent =
-    "You're the last one here. When you leave, this room's chat, shared notes and files are cleared for good (unless you saved them).";
+  lastOutText.textContent = LAST_OUT_TEXT;
   const lastOutRow = document.createElement("div");
   lastOutRow.className = "room-last-out-row";
   const leaveYes = document.createElement("button");
@@ -407,6 +430,7 @@ export function mountRoomPanel(opts: {
   let view: View = "closed";
   let unread = 0;
   let memberCount = 0;
+  let roomKind: RoomInfo["kind"] = "team";
   let speaking = new Set<string>();
   // The timer as last told, and when it was told (our own clock only measures the seconds since).
   let timer: RoomTimer | null = null;
@@ -524,6 +548,11 @@ export function mountRoomPanel(opts: {
     const counselling = info.kind === "counselling" || info.kind === "home";
     invite.hidden = !counselling;
     for (const b of homeItems) b.hidden = !(info.kind === "home" && opts.isMine());
+    const nowHome = info.kind === "home" && opts.isMine();
+    if (nowHome !== homeMenu) toolsOpen = false;
+    homeMenu = nowHome;
+    roomKind = info.kind;
+    drawTools();
     const waiting = counselling ? (info.invited ?? []) : [];
     invitedNote.hidden = waiting.length === 0;
     invitedNote.textContent = waiting.length
@@ -684,6 +713,16 @@ export function mountRoomPanel(opts: {
 
   function askLeave(): void {
     if (memberCount > 1) return opts.onLeave();
+    // Your own room keeps its furniture, notebook and calendar; its chat goes, which is no loss
+    // alone. A guest's room is cleared, so they're warned of that instead.
+    if (roomKind === "home" && opts.isMine()) {
+      if (!opts.isGuest()) return opts.onLeave();
+      lastOutText.textContent = "A guest's room is cleared when you leave: the notebook, the calendar and the furniture go back to how they started. Sign up to keep them.";
+      leaveYes.textContent = "Leave";
+    } else {
+      lastOutText.textContent = LAST_OUT_TEXT;
+      leaveYes.textContent = "Leave and clear";
+    }
     lastOut.hidden = false;
     leaveNo.focus();
   }

@@ -56,3 +56,6 @@
   #quests .quests-head { order: 2; }
   #quests .quests-next { display: block; flex: 1; margin: 0; font-size: 0.82rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 }
+
+/* A room of your own is for your own things: the tour waits outside it (the user, 11/18). */
+body.in-home #quests { display: none !important; }
