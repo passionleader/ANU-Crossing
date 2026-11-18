@@ -369,6 +369,22 @@
 
 ## After submission (after 11/9 12:00)
 
+### Portfolio features, 11/17–11/18 (the owner asleep, then live-reviewed; pushed together)
+
+- [x] 120. Others glide through uneven updates instead of stopping and jumping (Render's packets arrive unevenly): a small jitter buffer (`720f283`)
+- [x] 121. A round joystick on phones instead of the D-pad; a meeting room's video watched with its chat beside it, and a "(watch together)" button when someone plays (`831ab2a`)
+- [x] 122. Late models and textures compile their shaders before they're drawn; the sky decoded off the main thread (`18b203f`, `bf9b751`)
+- [x] 123. My Room: every account's own room, by the residence door (west end of the north row) or the house button anywhere; furniture to move, turn and recolour, a calendar (ANU dates can be copied in), its own two tracks, bright pastel walls; others only by invitation; a guest's room is forgotten when they leave (`ffeefce`, `68c0a7a`, `fcd7e73`, `7d4bdf7`, `099000a`, `0ae528d`)
+- [x] 124. The lecture theatre through the passage under the north row: one big screen, 50 tiered seats you can walk up and sit on, a lectern; only staff run the video (from anywhere in the room, full screen, captions for everyone), students raise a hand (the lecturer hears a chime) and ask in its Q&A (`82bf671`, `c5a7779`, `f2e7eb5`, `c8713b8`, `cd07e4f`, `87982ac`, `741ef5c`)
+- [x] 125. Sticky notes in My Room, seen only by whoever is inside; its owner removes any (`ba5b28e`)
+- [x] 126. COMP6300 is opened on every start beside COMP8020, and neither can be closed (`20da034`)
+- [x] 127. Pictures in every board's post text (ads, study groups, lab matching, Ask the Hub, classroom boards), new or edited: drag, paste, or "🖼 Add picture" for phones; at most five; a picture not yet in a post is its uploader's alone and is purged after a day. Sticky notes stay plain text without pictures (`f905a39`)
+- [x] 128. Your own notes (a cinema room's Notes, My Room's desk, "My notes" in the room menu): nothing kept until 💾 Save, which puts a copy in the mailbox's Saved tab (30 days, only you, with the place); closing or leaving with unsaved words asks first (Save / No, clear them / Keep writing); pictures as in 127, kept only by a saved copy; My Room's bookcase (E) opens the Saved notes; guests write but can't save. Decision record 007 (`062138f`)
+- [x] 129. Dropping a picture anywhere on a Markdown editor works (not only on the text box), with "Drop the picture here" over it while a file is dragged in; a failure is said in red; a file dropped elsewhere on the page no longer opens in place of the app (`4e34e97`)
+- [x] 130. Lie down on My Room's bed instead of sitting on its edge ("Lie down" / "Get up", seen the same way by others) (`fef451b`)
+- [x] 131. The lecture theatre split into Cinema Rooms 1–5, picked at the passage's door (with how many are in each); each has its own screen, hands and Q&A; the cinema rooms give no visit stamp (`bdfd3c1`)
+- Not done / known: local servers have no S3, so real uploads are checked only on the live site; diagram 9 still shows the Fly setup and none of 123–131; the lying figure has no lying clip (arms out)
+
 - [ ] 77. Where to keep the app running: Render free / Fly free (personal account) / cheapest AWS (EC2 t4g.nano–small or Lightsail). Compare: monthly cost, SQLite kept, WebSocket, sleeping, HTTPS, moving S3, SES and secrets, CI. Before that, back up `/data/app.db` and move the code to my personal repo. Guide: `docs/self-hosting.md`
 
 ---

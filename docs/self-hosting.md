@@ -58,8 +58,11 @@ text: `datetime('now')` (UTC, `YYYY-MM-DD HH:MM:SS`) in older tables, ISO 8601
 | `comments` | comments on notes | with the note |
 | `posts` | board posts: `space`, `tab`, `author`, `title`, `text` (Markdown), `edited_at` | until removed |
 | `post_comments` | comments on posts, `edited_at` | with the post |
-| `classrooms` | `code`, `created_by`, `board_url`, `side_url` | until the admin closes it |
-| `files` | uploads: `id`, `kind` (`bug`/`board`/`room`), `owner`, `name`, `size`, S3 `key`, `post_id`/`bug_id`/`room`, `ready` | 30 days at most |
+| `classrooms` | `code`, `created_by`, `board_url`, `side_url`; COMP8020 and COMP6300 are made on every start and can't be closed | until the admin closes it |
+| `files` | uploads: `id`, `kind` (`bug`/`board`/`room`/`note`), `owner`, `name`, `size`, S3 `key`, `post_id`/`bug_id`/`room`, `ready`. A `board` file with no `post_id` is a picture dropped into a post's text before it is posted (claimed by the post that names it, else purged after a day); a `note` file is a picture in someone's own notes (kept only if a saved copy shows it, else purged after a day) | 30 days at most |
+| `saved_chats` | a meeting room's chat or notes, or your own notes (`kind` `chat`/`notes`), saved for their `owner` only, with the `space` they were written in; 50 per person | 30 days |
+| `kept_files` | which pictures a saved copy shows, so they outlive the room (or the day) for its owner | with the saved copy |
+| `my_rooms` | My Room per account: `calendar` (JSON), `layout` (furniture JSON); `notebook` is from before own notes were saved on purpose and is no longer written by the client | forever |
 | `audit` | the admin's log: `event`, `who`, `browser` (hash of the token), `role`, `ip`, `space`, `details` (JSON), `content` | 7 days |
 | `bug_reports` | bug reports and reports about people: `text`, `about`, `chat` (JSON of the last five minutes) | 28 days |
 | `chat_lines` | map chat (not meeting rooms'), only for reports | 1 day |
@@ -67,7 +70,8 @@ text: `datetime('now')` (UTC, `YYYY-MM-DD HH:MM:SS`) in older tables, ISO 8601
 | `cache` | small key–value JSON (e.g. the classmates' project list) | overwritten |
 
 Purges run hourly in the server (`purge()` in `server/main.ts`). Live
-positions and meeting-room chat are memory only and never touch the file.
+positions, meeting-room chat and each cinema room's screen, raised hands and
+questions are memory only and never touch the file.
 
 **Backups.** WAL mode means the database is three files (`app.db`,
 `app.db-wal`, `app.db-shm`). Never copy them while the server writes. Use

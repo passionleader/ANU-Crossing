@@ -17,9 +17,22 @@
 | Status | as submitted for COMP8020; runs until Fly is switched off after marking | this repository's `main`, any email may sign up |
 
 The course version is the one described in [PROCESS.md](PROCESS.md). The mirror
-changes only what moving off Fly needed (where the visitor's IP comes from,
+changed what moving off Fly needed (where the visitor's IP comes from,
 any-email sign-up with staff still ANU-only, and loading the AI assistants'
-pages at start-up).
+pages at start-up), and after submission it gained a few places of its own:
+
+- **My Room**: every account's own room (the residence door, or the house
+  button anywhere), with its furniture to arrange, a calendar, sticky notes
+  only its visitors see, a bed to lie on, and a bookcase holding your saved
+  notes. Others come in only when invited.
+- **The lecture theatre**: through the passage under the north row, five
+  cinema rooms to pick from, each with a big screen only staff run, raised
+  hands and a Q&A.
+- **Your own notes** in either: nothing is kept until you press Save
+  ([decision 007](docs/decisions/007-your-own-notes-kept-only-when-saved.md)).
+- **Pictures in Markdown**: drag, paste or add pictures into any board
+  post's text (new or edited), a room's shared notes and your own notes.
+- A round joystick on phones, and COMP6300 open beside COMP8020 from the start.
 
 <u>What to try:</u> sign up with any email (a student number works too) or
 come in as a guest, and open a second Chrome profile to be two people at
@@ -43,7 +56,7 @@ submitted.
   developer).
 - [Decision records](docs/decisions/) (what lasts, who may see what, AI
   assistants that answer only from ANU's pages, voice on its own server,
-  sign-up, several agent sessions), the [research note](research-note.md) and
+  sign-up, several agent sessions, your own notes kept only when saved), the [research note](research-note.md) and
   the [architecture diagrams](docs/diagrams/).
 
 ## What it is
@@ -107,6 +120,12 @@ Enforced by `spec/`:
 - live counts carry no names, moves arrive within a second, and chat stays
   in its space (`realtime.test.ts`)
 - private questions and mail reach only their readers (`board.test.ts`)
+- My Room lets in its owner and only those invited, and keeps its notes,
+  calendar and saved notes to their owner (`myroom.test.ts`)
+- only staff run a cinema room's screen, and each cinema room's screen, hands
+  and questions stay in it (`theatre.test.ts`)
+- a picture in a post's text or your notes is yours until posted or saved,
+  and purged after a day if never used (`files.test.ts`, `rules.test.ts`)
 
 Judged by people: does it feel like our campus, is it restful, does talking
 get easier, can a newcomer find everything? I walked the whole map
