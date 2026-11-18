@@ -1,5 +1,6 @@
 import "./style.css";
 import { Track } from "./smoothing.ts";
+import type { VideoView } from "./roomscreen.ts";
 import "./mobilefix.css";
 import * as THREE from "three";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
@@ -1122,6 +1123,38 @@ async function toggleShare(on: boolean): Promise<void> {
     roomPanel.show("screen");
   } else if (!on) toast("Stopped sharing your screen.");
 }
+// "📺 Watch together" (the user, 11/18): when someone in the room plays a video and you aren't
+// on the Shared screen view, a button floats up to take you there. It goes when you open it, when
+// the video stops, or after a while.
+let lastVideo: VideoView | null = null;
+const watchPrompt = (() => {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "watch-together";
+  btn.hidden = true;
+  document.body.append(btn);
+  let timer = 0;
+  const hide = (): void => {
+    btn.hidden = true;
+    window.clearTimeout(timer);
+  };
+  btn.addEventListener("click", () => {
+    hide();
+    if (!roomPanel.isOpen()) return;
+    roomPanel.show("screen");
+  });
+  return {
+    offer(by: string): void {
+      if (roomPanel.isOpen() && roomPanel.view() === "screen") return;
+      btn.textContent = `📺 Watch together · ${by} started a video`;
+      btn.hidden = false;
+      window.clearTimeout(timer);
+      timer = window.setTimeout(hide, 45_000);
+    },
+    hide,
+  };
+})();
+
 const roomPanel = mountRoomPanel({
   onSend: (text) => sayChat(text),
   onInvite: (name) => {
@@ -1133,7 +1166,10 @@ const roomPanel = mountRoomPanel({
   },
   notes: roomPad.el,
   screen: roomScreen.el,
-  onScreenShown: (on) => roomScreen.shown(on),
+  onScreenShown: (on) => {
+    roomScreen.shown(on);
+    if (on) watchPrompt.hide();
+  },
   onShown: (open) => {
     document.body.classList.toggle("room-open", open);
     if (open) stopMoving();
@@ -1788,6 +1824,8 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
     roomPad.close();
     roomPanel.close();
     roomScreen.reset();
+    watchPrompt.hide();
+    lastVideo = null;
     document.body.classList.remove("in-room");
     if (playing) chat.show();
   }
@@ -2015,6 +2053,8 @@ function showJoin(message = ""): void {
   lastWhisperFrom = "";
   roomPanel.close();
   roomScreen.reset();
+  watchPrompt.hide();
+  lastVideo = null;
   document.body.classList.remove("in-room");
   net?.close();
   net = null;
@@ -2226,6 +2266,9 @@ function goOnline(token: string): void {
     roomOpen(id, x, z, room, lines, players, pad, timer, video) {
       roomPad.set(pad.text, pad.by);
       roomScreen.video(video);
+      lastVideo = video;
+      // Walking into a room where a video is already playing: the same offer.
+      if (video?.playing) watchPrompt.offer(video.by);
       if (space?.id !== id) setSpace(id, { x, z }, false);
       players.forEach(upsertOther);
       chat.hide();
@@ -2243,7 +2286,12 @@ function goOnline(token: string): void {
       roomPanel.timer(t);
     },
     video(v) {
+      const was = lastVideo;
+      lastVideo = v;
       roomScreen.video(v);
+      // Someone else pressed play (or put a video on, playing) and we're not watching: offer to.
+      if (v?.playing && v.by !== session?.name && !(was?.playing && was.id === v.id)) watchPrompt.offer(v.by);
+      if (!v?.playing) watchPrompt.hide();
     },
     videoRefused(reason, v) {
       roomScreen.video(v);
@@ -2383,9 +2431,12 @@ function toast(msg: string): void {
 // --- input -----------------------------------------------------------------
 
 const dirs = { up: false, down: false, left: false, right: false };
+/** The on-screen joystick's tilt (x right, z down the screen), each -1..1; zero when let go. */
+const stickTilt = { x: 0, z: 0 };
 let running = false;
 function stopMoving(): void {
   dirs.up = dirs.down = dirs.left = dirs.right = false;
+  stickTilt.x = stickTilt.z = 0;
   running = false;
 }
 const KEY_MAP: Record<string, keyof typeof dirs> = {
@@ -2463,19 +2514,52 @@ window.addEventListener("keyup", (e) => {
 });
 window.addEventListener("blur", stopMoving);
 
-// On-screen controls call the same functions as the keyboard.
-for (const btn of touch.querySelectorAll<HTMLButtonElement>("[data-dir]")) {
-  const dir = btn.dataset.dir as keyof typeof dirs;
-  const release = (): void => {
-    dirs[dir] = false;
+// The on-screen joystick (11/18, replacing the four-arrow D-pad): any direction, not just eight.
+// The thumb drags the knob within the base; how far it goes sets the walk, pushed to the rim it runs.
+{
+  const base = $("stick");
+  const knob = $("stick-knob");
+  const DEAD = 0.15;
+  let held: number | null = null;
+  const letGo = (): void => {
+    held = null;
+    base.classList.remove("held");
+    knob.style.transform = "";
+    stickTilt.x = stickTilt.z = 0;
+    running = false;
   };
-  btn.addEventListener("pointerdown", (e) => {
+  // The window losing focus mid-drag (a call, a notification): the knob springs back too.
+  window.addEventListener("blur", letGo);
+  const moveTo = (e: PointerEvent): void => {
+    const r = base.getBoundingClientRect();
+    const reach = r.width / 2 - 14;
+    let dx = e.clientX - (r.left + r.width / 2);
+    let dz = e.clientY - (r.top + r.height / 2);
+    const d = Math.hypot(dx, dz);
+    if (d > reach) [dx, dz] = [(dx / d) * reach, (dz / d) * reach];
+    knob.style.transform = `translate(${dx}px, ${dz}px)`;
+    const k = Math.min(1, d / reach);
+    // A small dead zone, so resting the thumb doesn't creep; past it the pace ramps up from nothing.
+    const tilt = k < DEAD ? 0 : (k - DEAD) / (1 - DEAD);
+    stickTilt.x = d ? (dx / Math.max(d, 1e-6)) * tilt : 0;
+    stickTilt.z = d ? (dz / Math.max(d, 1e-6)) * tilt : 0;
+    running = tilt > 0.85;
+  };
+  const release = (e: PointerEvent): void => {
+    if (e.pointerId === held) letGo();
+  };
+  base.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    dirs[dir] = true;
+    held = e.pointerId;
+    base.setPointerCapture(e.pointerId);
+    base.classList.add("held");
+    moveTo(e);
   });
-  btn.addEventListener("pointerup", release);
-  btn.addEventListener("pointercancel", release);
-  btn.addEventListener("pointerleave", release);
+  base.addEventListener("pointermove", (e) => {
+    if (e.pointerId === held) moveTo(e);
+  });
+  base.addEventListener("pointerup", release);
+  base.addEventListener("pointercancel", release);
 }
 // iPhones ignore the viewport's user-scalable=no, so pinching, or tapping
 // twice fast (two fingers on the pad and Jump), zooms the page. Over the game
@@ -2882,7 +2966,10 @@ function update(dt: number, now: number): void {
   if (playing) {
     let moving = false;
     if (!busy()) {
-      move.set(Number(dirs.right) - Number(dirs.left), 0, Number(dirs.down) - Number(dirs.up));
+      move.set(Number(dirs.right) - Number(dirs.left) + stickTilt.x, 0, Number(dirs.down) - Number(dirs.up) + stickTilt.z);
+      // The joystick part way over walks slower; keys (and the stick past the rim) walk at full speed.
+      const stickSlow = Math.hypot(stickTilt.x, stickTilt.z);
+      const pace = stickSlow > 0 && move.lengthSq() <= 1.0001 ? Math.max(0.12, stickSlow) : 1;
       // Turned outside (plan 34), up stays "away from the camera".
       // Indoors the view is always from the south, so the turn mustn't steer there (it did: 6, 10/30).
       if (camYaw && space.outdoor) move.applyAxisAngle(Y_AXIS, camYaw);
@@ -2898,8 +2985,8 @@ function update(dt: number, now: number): void {
       if (move.lengthSq() > 0) {
         moving = true;
         move.normalize();
-        player.position.addScaledVector(move, (running ? RUN_SPEED : SPEED) * dt);
-        walked += (running ? RUN_SPEED : SPEED) * dt;
+        player.position.addScaledVector(move, (running ? RUN_SPEED : SPEED) * pace * dt);
+        walked += (running ? RUN_SPEED : SPEED) * pace * dt;
         if (walked > 8) quests.done("walk");
         // Turn smoothly toward the way we're going (the model faces +z).
         const want = Math.atan2(move.x, move.z);

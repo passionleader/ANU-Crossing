@@ -507,3 +507,19 @@
 .room-timer-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
 .room-timer-buttons button { flex: 1 1 0; min-width: 56px; min-height: 44px; }
 .room-timer-step { font-variant-numeric: tabular-nums; }
+
+/* The shared screen with the room's chat beside it (11/18): side by side on a wide window, the
+   chat under the video on a phone. */
+.room-screen-body { flex: 1; min-height: 0; display: flex; gap: 10px; }
+.room-screen-body > #room-screen { flex: 1 1 auto; min-width: 0; }
+.room-side-chat { flex: 0 0 290px; min-width: 0; display: flex; flex-direction: column; padding-bottom: 4px; border-left: 1px solid rgba(107, 63, 29, 0.18); }
+.room-side-chat .room-log { margin: 0 8px; }
+.room-side-chat .room-send-row { padding: 8px 8px 4px; }
+@media (max-width: 900px), (pointer: coarse) {
+  /* A phone: the video on top, then the chat filling the rest, its send box always on screen. */
+  .room-screen-body { flex-direction: column; overflow: hidden; gap: 6px; }
+  .room-screen-body > #room-screen { flex: none; overflow: visible; gap: 6px; padding-bottom: 0; }
+  .room-screen-body .rs-buttons button { min-height: 36px; padding: 0 10px; font-size: 0.85rem; }
+  .room-side-chat { flex: 1 1 0; min-height: 140px; border-left: 0; border-top: 1px solid rgba(107, 63, 29, 0.18); padding-top: 6px; }
+  .room-side-chat .room-log { min-height: 0; }
+}

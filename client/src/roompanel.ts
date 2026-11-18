@@ -7,7 +7,7 @@
 // small "Room" button to open it again. Going between them never clears
 // anything: the chat, the notes and anything half typed stay until you leave
 // by the door. While the window is open, the rest of the screen's buttons
-// (HUD, mail, look, settings, and on a phone the pad) step aside
+// (HUD, mail, look, settings, and on a phone the joystick) step aside
 // (body.room-open, style.css).
 // Nothing is stored: the server keeps the chat only while someone is in the
 // room. The server decides who may be invited or enter; this only collects
@@ -99,6 +99,8 @@ export function mountRoomPanel(opts: {
   focusInput(): void;
   /** Shows a view (the menu, chat, notes) or hides the window. */
   show(view: View): void;
+  /** Which view is on screen ("closed" when only the small button shows). */
+  view(): View;
   /** Says on the menu whether your voice is on. */
   setVoice(on: boolean): void;
   /** Says on the menu whether you're sharing your screen. */
@@ -311,7 +313,22 @@ export function mountRoomPanel(opts: {
   // --- the screen view (roomscreen.ts draws inside) -------------------------------
   const screenView = document.createElement("div");
   screenView.className = "room-view room-screen";
-  screenView.append(viewHead("📺 Shared screen"), opts.screen);
+  // Watching together, talking together (the user, 11/18): the room's chat sits beside the
+  // video (under it on a phone). It is the same chat, moved here while this view is shown.
+  const screenBody = document.createElement("div");
+  screenBody.className = "room-screen-body";
+  const sideChat = document.createElement("div");
+  sideChat.className = "room-side-chat";
+  sideChat.setAttribute("aria-label", "Room chat");
+  screenBody.append(opts.screen, sideChat);
+  screenView.append(viewHead("📺 Shared screen"), screenBody);
+  /** Moves the chat's log and its send row to where they're shown: the chat view, or beside the video. */
+  function placeChat(beside: boolean): void {
+    const home = beside ? sideChat : chatView;
+    if (log.parentElement === home) return;
+    home.append(log, fileStatus, sendRow);
+    log.scrollTop = log.scrollHeight;
+  }
 
   function viewHead(text: string): HTMLDivElement {
     const head = document.createElement("div");
@@ -447,7 +464,8 @@ export function mountRoomPanel(opts: {
     chatView.hidden = next !== "chat";
     notesView.hidden = next !== "notes";
     screenView.hidden = next !== "screen";
-    if (next === "chat") {
+    if (next === "screen" || next === "chat") placeChat(next === "screen");
+    if (next === "chat" || next === "screen") {
       unread = 0;
       log.scrollTop = log.scrollHeight;
       syncBadges();
@@ -721,7 +739,7 @@ export function mountRoomPanel(opts: {
       append(line);
       if (stick) log.scrollTop = log.scrollHeight;
       // Someone else's line while the chat isn't on screen: count it.
-      if (view !== "chat" && !line.self && !line.system) {
+      if (view !== "chat" && view !== "screen" && !line.self && !line.system) {
         unread++;
         syncBadges();
       }
@@ -733,6 +751,7 @@ export function mountRoomPanel(opts: {
     isTyping: () => isOpen && (view !== "closed" || !lastOut.hidden),
     askLeave,
     show,
+    view: () => view,
     setVoice(on) {
       const label = voiceItem.querySelector(".room-item-label");
       if (label?.firstChild) label.firstChild.textContent = on ? "Mic: on" : "Mic: off";

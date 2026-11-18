@@ -15,7 +15,18 @@
 .rs-player, .rs-player iframe { width: 100%; height: 100%; border: 0; }
 .rs-status { margin: 0; font-size: 0.85rem; opacity: 0.85; min-height: 1.2em; }
 .rs-clear { align-self: flex-start; }
-@media (min-width: 900px) { #room-ui:has(.room-screen:not([hidden])) { width: min(900px, calc(100vw - 24px)); } }
+@media (min-width: 900px) { #room-ui:has(.room-screen:not([hidden])) { width: min(1180px, calc(100vw - 24px)); } }
 /* "Stop the video for everyone" and "Open in a new window" side by side, wrapping on a phone. */
 .rs-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
 .rs-buttons .rs-clear { align-self: auto; }
+/* "Watch together" (11/18): floats up at the top middle when someone else starts the room's video. */
+#watch-together {
+  position: fixed; top: calc(64px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 18;
+  max-width: calc(100vw - 32px); min-height: 44px; padding: 0 18px; border: 2px solid #fff8eb; border-radius: 999px;
+  background: var(--accent, #6b3f1d); color: #fff; font: 700 0.95rem system-ui, sans-serif; cursor: pointer;
+  box-shadow: 0 4px 16px rgba(40, 24, 10, 0.35); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  animation: watch-in 0.25s ease-out;
+}
+#watch-together[hidden] { display: none; }
+@keyframes watch-in { from { opacity: 0; transform: translate(-50%, -8px); } }
+@media (prefers-reduced-motion: reduce) { #watch-together { animation: none; } }

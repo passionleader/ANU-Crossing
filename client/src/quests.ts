@@ -15,7 +15,7 @@ export type QuestId = "walk" | "wave" | "chat" | "npc" | "library" | "room" | "l
 // arrow follows the first step not done, and the walk takes a few seconds, so a newcomer soon
 // has the arrow to the library (on 11/8, arriving inside, wave and chat first had hidden it).
 const QUESTS: { id: QuestId; text: string }[] = [
-  { id: "walk", text: "Walk around (WASD, or the pad)" },
+  { id: "walk", text: "Walk around (WASD, or the joystick)" },
   { id: "library", text: "Go into Chifley Library (follow the arrow)" },
   { id: "npc", text: "Ask Robin, the AI at the library desk, something (follow the arrow)" },
   { id: "room", text: "Step into a team room (follow the arrow)" },
