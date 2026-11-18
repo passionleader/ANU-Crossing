@@ -29,7 +29,7 @@ export const QUESTIONS: Question[] = [
   { q: "What is the last day to drop a Semester 1 2026 course without failure?", a: "8 May 2026", wrong: ["23 February 2026", "31 March 2026", "29 May 2026"] },
   { q: "In which Canberra suburb is ANU's main campus?", a: "Acton", wrong: ["Belconnen", "Braddon", "Kingston"] },
   { q: "The Marie Reay Teaching Centre, with Craft Beans coffee, is in which ANU precinct?", a: "Kambri", wrong: ["Civic", "Woden", "Belconnen"] },
-  { q: "The Student Hub and Lab Coffee are in the Di Riddell Student Centre. Which building number is it?", a: "154", wrong: ["155", "25", "1"] },
+  { q: "The Student Hub and Lab Koffee are in the Di Riddell Student Centre. Which building number is it?", a: "154", wrong: ["155", "25", "1"] },
   { q: "What does ANUSA stand for?", a: "ANU Students' Association", wrong: ["ANU Staff and University Services Agency", "Australian National University Sports Alliance", "ANU Study Abroad Office"] },
   { q: "What does the O in O-Week stand for?", a: "Orientation", wrong: ["Open", "Online", "Outdoor"] },
   { q: "An ANU student's email begins with u. How many digits come next?", a: "7", wrong: ["5", "6", "8"] },
@@ -37,6 +37,6 @@ export const QUESTIONS: Question[] = [
   { q: "What does ACT stand for?", a: "Australian Capital Territory", wrong: ["Australian Central Territory", "Allied Capital Territory", "Australian Council Trust"] },
   { q: "Which lake lies in the middle of Canberra and is named after the city's designer?", a: "Lake Burley Griffin", wrong: ["Lake George", "Lake Eucumbene", "Lake Ginninderra"] },
   { q: "On which hill does Parliament House stand?", a: "Capital Hill", wrong: ["Red Hill", "Mount Ainslie", "Black Mountain"] },
-  { q: "The Telstra Tower stands on which hill near ANU?", a: "Black Mountain", wrong: ["Red Hill", "Mount Ainslie", "Mount Majura"] },
+  { q: "The telecommunications tower near ANU, with a viewing deck, stands on which hill?", a: "Black Mountain", wrong: ["Red Hill", "Mount Ainslie", "Mount Majura"] },
   { q: "In which year was the Australian National University founded by an Act of Parliament?", a: "1946", wrong: ["1913", "1927", "1967"] },
 ];

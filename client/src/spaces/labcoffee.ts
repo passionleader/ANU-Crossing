@@ -55,7 +55,7 @@ export function buildLabCoffee(space: THREE.Group, colliders: Box[]): void {
   // The name, on the fascia and again round the corner, readable from the
   // terrace and from the path west of 154.
   const name = (w: number, x: number, z: number, rotY: number): void => {
-    const s = textPlane(["LAB COFFEE"], w, 0.5, { bg: "#2a2420", fg: "#f3d9a4", font: 0.36 });
+    const s = textPlane(["LAB KOFFEE"], w, 0.5, { bg: "#2a2420", fg: "#f3d9a4", font: 0.36 });
     s.position.set(x, 3.3, z);
     s.rotation.y = rotY;
     g.add(s);
@@ -71,7 +71,7 @@ export function buildLabCoffee(space: THREE.Group, colliders: Box[]): void {
   // The fascia sits back under 154's upper floor, so from the terrace (the camera turned round:
   // the user, 11/4) only its foot showed. A second name hangs from the slab's outer edge (154's
   // north face, z -20), facing out over the terrace.
-  const outer = textPlane(["LAB COFFEE"], 4.4, 0.55, { bg: "#2a2420", fg: "#f3d9a4", font: 0.38 });
+  const outer = textPlane(["LAB KOFFEE"], 4.4, 0.55, { bg: "#2a2420", fg: "#f3d9a4", font: 0.38 });
   outer.position.set(15.5, 3.45, -20.08);
   outer.rotation.y = Math.PI;
   g.add(outer);
@@ -113,7 +113,7 @@ function umbrella(g: THREE.Group, x: number, z: number): void {
 function menuBoard(g: THREE.Group, colliders: Box[]): void {
   const { x, z } = CAFE_MENU;
   const b = new THREE.Group();
-  const face = textPlane(["Lab Coffee", "☕ cafés on campus"], 1.1, 1.4, { bg: "#2f4a3a", fg: "#f2f0e6", font: 0.15 });
+  const face = textPlane(["Lab Koffee", "☕ cafés on campus"], 1.1, 1.4, { bg: "#2f4a3a", fg: "#f2f0e6", font: 0.15 });
   face.position.set(0, 0.85, 0.12);
   face.rotation.x = -0.15;
   const frame = new THREE.Mesh(new THREE.BoxGeometry(1.24, 1.54, 0.05), mat(0x8a5a32));
@@ -124,7 +124,7 @@ function menuBoard(g: THREE.Group, colliders: Box[]): void {
   back.rotation.x = 0.15;
   // Its other face, seen with the camera turned round (it was bare timber: the user, 11/4): today's
   // drinks in chalk, and the same pointer to the cafés.
-  const menu = textPlane(["Lab Coffee", "Flat white · Latte", "Long black · Chai", "Toasties · Muffins", "☕ cafés on campus: E"], 1.1, 1.4, { bg: "#2f4a3a", fg: "#f2f0e6", font: 0.1 });
+  const menu = textPlane(["Lab Koffee", "Flat white · Latte", "Long black · Chai", "Toasties · Muffins", "☕ cafés on campus: E"], 1.1, 1.4, { bg: "#2f4a3a", fg: "#f2f0e6", font: 0.1 });
   menu.position.set(0, 0.85, -0.12);
   menu.rotation.set(0.15, Math.PI, 0);
   b.add(frame, face, back, menu);

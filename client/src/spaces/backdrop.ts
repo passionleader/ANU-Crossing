@@ -235,11 +235,11 @@ function block(
  * glass at z: each shop four tall panes in a dark frame, a coloured awning,
  * and a plain painted name board. Names only, in plain type: no brand logos.
  */
-// Left to right as on the real street: a bar, Subway, a burger place.
+// Left to right as on the real street: a bar, a sandwich place, a burger place.
 const SHOPS = [
   { name: "Symposium", w: 13, board: "#2b2b30", fg: "#e8c872", awning: 0x2b2b30 },
-  { name: "Subway", w: 13, board: "#00843d", fg: "#ffcc00", awning: 0x00843d },
-  { name: "Broger", w: 13, board: "#c8331e", fg: "#ffffff", awning: 0xc8331e },
+  { name: "Suwsway", w: 13, board: "#00843d", fg: "#ffcc00", awning: 0x00843d },
+  { name: "Brogga", w: 13, board: "#c8331e", fg: "#ffffff", awning: 0xc8331e },
 ];
 /** West of Symposium: an unlet unit or a nameless office, glass front and a plain grey awning, no name. */
 const UNLET = [{ name: "", w: 9, board: "", fg: "", awning: 0x8a8d90 }];

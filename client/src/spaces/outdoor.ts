@@ -315,7 +315,7 @@ export function buildOutdoor(): SpaceDef {
       { ...DOG_SPOT, id: "dog", label: "Pat the dog" },
       { x: LAWN_BOARD.x, z: LAWN_BOARD.z + 0.9, id: "board", label: "Open the advertising board" },
       { x: STUDY_BOARD.x + 0.9, z: STUDY_BOARD.z, id: "study-groups", label: "Open the study-group board" },
-      { x: CAFE_MENU.x, z: CAFE_MENU.z + 0.9, id: "cafes", label: "Read Lab Coffee's board (cafés on campus)" },
+      { x: CAFE_MENU.x, z: CAFE_MENU.z + 0.9, id: "cafes", label: "Read Lab Koffee's board (cafés on campus)" },
     ],
     // ANU Sport's site won't be framed, so a new tab.
     links: [

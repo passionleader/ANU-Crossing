@@ -462,12 +462,12 @@ function buildBadger(g: THREE.Group, colliders: Box[]): void {
   const frontLen = cutX - minX - 1.5;
   const front = new THREE.Mesh(new THREE.BoxGeometry(frontLen, floorH - 0.5, 0.12), mat(0x23282c));
   front.position.set(minX + 0.75 + frontLen / 2, (floorH - 0.5) / 2, minZ - 0.05);
-  const sign = textPlane(["BADGER & CO."], 5.5, 0.6, { bg: "#23282c", fg: "#e8e4d8", font: 0.36 });
+  const sign = textPlane(["LACOON & CO."], 5.5, 0.6, { bg: "#23282c", fg: "#e8e4d8", font: 0.36 });
   sign.position.set(minX + 0.75 + frontLen / 2, floorH - 0.28, minZ - 0.13);
   sign.rotation.y = Math.PI;
   // The camera faces north, so the lane by 155 (the east face) is where
   // people see it from: its name there too, on the curve's side.
-  const side = textPlane(["BADGER & CO."], 4, 0.5, { bg: "#23282c", fg: "#e8e4d8", font: 0.3 });
+  const side = textPlane(["LACOON & CO."], 4, 0.5, { bg: "#23282c", fg: "#e8e4d8", font: 0.3 });
   side.position.set(maxX + 0.13, floorH - 0.28, cutZ + 3);
   side.rotation.y = Math.PI / 2;
   b.add(side);

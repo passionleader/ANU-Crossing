@@ -1936,7 +1936,7 @@ const minimap = mountMinimap({
     { minX: -9.6, maxX: 5.4, minZ: -2, maxZ: 26.6 },
   ],
   buildings: [
-    { name: "Badger", minX: -50, maxX: -38, minZ: -2, maxZ: 16 },
+    { name: "Lacoon", minX: -50, maxX: -38, minZ: -2, maxZ: 16 },
     { name: "155", minX: -28, maxX: -10, minZ: -2, maxZ: 16 },
     { name: "154", minX: 6, maxX: 26, minZ: -20, maxZ: 14 },
     { name: "Library", minX: -9, maxX: 5, minZ: 26, maxZ: 28 },
@@ -1946,7 +1946,7 @@ const minimap = mountMinimap({
     { x: 5.7, z: 3, name: "Hub" },
     { x: 5.7, z: -5, name: "ANUSA" },
     { x: -2, z: 27, name: "Library" },
-    { x: 12, z: -21, name: "Lab Coffee" },
+    { x: 12, z: -21, name: "Lab Koffee" },
     { x: -45.5, z: -30, name: "ANU Sport" },
     { x: -39.3, z: -30, name: "Housing" },
     { x: 18, z: -39.4, name: "Career Hub" },
