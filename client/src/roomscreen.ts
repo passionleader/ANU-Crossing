@@ -17,6 +17,8 @@ export interface VideoView {
   /** Seconds into the video when this was sent. */
   pos: number;
   by: string;
+  /** Captions the room shows (a language code, "" for none; the lecture theatre's lecturer sets them). */
+  cc?: string;
 }
 
 /** The two sites' players behind one small set of calls. */
@@ -29,6 +31,12 @@ interface Adapter {
   steady(): boolean;
   /** Whether it's playing (or buffering) right now, not stopped or waiting to start. */
   running(): Promise<boolean>;
+  /** How long the video is (seconds), 0 if not known yet. */
+  duration(): Promise<number>;
+  /** The captions shown now (a language code, "" for none), or null if this player can't tell. */
+  captions(): string | null;
+  /** Shows captions in `lang` ("" turns them off). */
+  setCaptions(lang: string): void;
   destroy(): void;
 }
 
@@ -39,6 +47,11 @@ interface YTPlayer {
   seekTo(s: number, ahead: boolean): void;
   getCurrentTime(): number;
   getPlayerState(): number;
+  getDuration(): number;
+  getOption(module: string, option: string): unknown;
+  setOption(module: string, option: string, value: unknown): void;
+  loadModule(module: string): void;
+  unloadModule(module: string): void;
   destroy(): void;
 }
 interface VimeoPlayer {
@@ -47,6 +60,9 @@ interface VimeoPlayer {
   setCurrentTime(s: number): Promise<number>;
   getCurrentTime(): Promise<number>;
   getPaused(): Promise<boolean>;
+  getDuration(): Promise<number>;
+  enableTextTrack(lang: string): Promise<unknown>;
+  disableTextTrack(): Promise<void>;
   on(ev: string, f: (d: { seconds?: number }) => void): void;
   destroy(): Promise<void>;
 }
@@ -100,6 +116,12 @@ export function mountRoomScreen(opts: {
   onNotSent(): void;
   /** The room is playing but this browser's player hasn't started (a browser waits for a first click before sound). */
   onStuck?(stuck: boolean): void;
+  /** Whether a click on this player may change the room's video (false: it follows only). Default yes. */
+  mayControl?(): boolean;
+  /** The person changed the captions on their player (only asked when they may control it). */
+  onCaptions?(lang: string): void;
+  /** The lecture theatre: "Reset the video" rather than "Stop…", and no "Open in a new window". */
+  theatre?: boolean;
 }): {
   el: HTMLElement;
   /** The room's video as the server says it is now (null: none). */
@@ -113,8 +135,6 @@ export function mountRoomScreen(opts: {
   reset(): void;
   /** Says something in the panel (a refusal). */
   note(msg: string): void;
-  /** Where the room's video is now (seconds) and whether it plays, or null with none. */
-  where(): { pos: number; playing: boolean } | null;
   /** After a click on the page: starts this browser's player if the room is playing and it isn't. */
   nudge(): void;
 } {
@@ -166,7 +186,7 @@ export function mountRoomScreen(opts: {
   const clear = document.createElement("button");
   clear.type = "button";
   clear.className = "room-secondary rs-clear";
-  clear.textContent = "Stop the video for everyone";
+  clear.textContent = opts.theatre ? "Reset the video (take it off the screen)" : "Stop the video for everyone";
   // Beside it: the same video on its own site in a new window, from where the room is now (the
   // user, 11/9). That window is yours alone and isn't kept in step with the room.
   const popOut = document.createElement("button");
@@ -204,7 +224,14 @@ export function mountRoomScreen(opts: {
     opts.onStuck?.(on);
   }
 
-  const expected = (): number => (state ? state.pos + (state.playing ? (performance.now() - stateAt) / 1000 : 0) : 0);
+  /** The video's length once the player knows it (0 until then): the room's place never runs past it. */
+  let length = 0;
+  const expected = (): number => {
+    const t = state ? state.pos + (state.playing ? (performance.now() - stateAt) / 1000 : 0) : 0;
+    return length > 0 ? Math.min(t, Math.max(0, length - 0.5)) : t;
+  };
+  /** Captions this player last showed, to tell the person changing them from the room's. */
+  let shownCc: string | null = null;
   const send = (op: string, extra?: Record<string, unknown>): void => {
     // Our own echo (the server tells everyone, us too) settles it; until then the player isn't judged.
     quiet(1500);
@@ -228,10 +255,12 @@ export function mountRoomScreen(opts: {
     }
     adapter = null;
     builtFor = "";
+    length = 0;
+    shownCc = null;
     stage.replaceChildren();
   }
 
-  async function youtube(v: VideoView, mount: HTMLElement, onUser: (what: "play" | "pause") => void): Promise<Adapter> {
+  async function youtube(v: VideoView, mount: HTMLElement, onUser: (what: "play" | "pause" | "ended") => void): Promise<Adapter> {
     await loadYouTube();
     return new Promise((resolve, reject) => {
       const p = new w.YT!.Player(mount, {
@@ -248,12 +277,31 @@ export function mountRoomScreen(opts: {
               time: async () => p.getCurrentTime(),
               steady: () => [1, 2].includes(p.getPlayerState()),
               running: async () => [1, 3].includes(p.getPlayerState()),
+              duration: async () => p.getDuration() || 0,
+              captions: () => {
+                try {
+                  const t = p.getOption("captions", "track") as { languageCode?: string } | undefined;
+                  return t?.languageCode ?? "";
+                } catch {
+                  return null;
+                }
+              },
+              setCaptions: (lang) => {
+                try {
+                  if (!lang) return p.unloadModule("captions");
+                  p.loadModule("captions");
+                  p.setOption("captions", "track", { languageCode: lang });
+                } catch {
+                  // Captions not ready yet: the next sync tries again.
+                }
+              },
               destroy: () => p.destroy(),
             }),
-          // 1 playing, 2 paused: a person pressing the player's own buttons.
+          // 1 playing, 2 paused, 0 ended: a person pressing the player's own buttons, or the end.
           onStateChange: (e: { data: number }) => {
             if (e.data === 1) onUser("play");
             else if (e.data === 2) onUser("pause");
+            else if (e.data === 0) onUser("ended");
           },
           onError: () => reject(new Error("youtube")),
         },
@@ -261,11 +309,13 @@ export function mountRoomScreen(opts: {
     });
   }
 
-  async function vimeo(v: VideoView, mount: HTMLElement, onUser: (what: "play" | "pause") => void): Promise<Adapter> {
+  async function vimeo(v: VideoView, mount: HTMLElement, onUser: (what: "play" | "pause" | "ended") => void): Promise<Adapter> {
     await loadVimeo();
     const p = new w.Vimeo!.Player(mount, v.hash ? { url: `https://vimeo.com/${v.id}/${v.hash}`, responsive: true } : { id: Number(v.id), responsive: true });
     p.on("play", () => onUser("play"));
     p.on("pause", () => onUser("pause"));
+    p.on("ended", () => onUser("ended"));
+    let cc = "";
     return {
       play: () => void p.play().catch(() => {}),
       pause: () => void p.pause().catch(() => {}),
@@ -273,6 +323,12 @@ export function mountRoomScreen(opts: {
       time: () => p.getCurrentTime(),
       steady: () => true,
       running: async () => !(await p.getPaused()),
+      duration: () => p.getDuration().catch(() => 0),
+      captions: () => cc,
+      setCaptions: (lang) => {
+        cc = lang;
+        void (lang ? p.enableTextTrack(lang) : p.disableTextTrack()).catch(() => {});
+      },
       destroy: () => void p.destroy().catch(() => {}),
     };
   }
@@ -293,11 +349,23 @@ export function mountRoomScreen(opts: {
     stage.append(mount);
     say("Loading the player…");
     quiet(3500);
-    const onUser = async (what: "play" | "pause"): Promise<void> => {
-      if (isQuiet() || !state || !adapter) return;
+    const onUser = async (what: "play" | "pause" | "ended"): Promise<void> => {
+      if (!state || !adapter) return;
+      // The end: the room stops there, paused, so the clock doesn't run on past it (it used to, and a
+      // "replay" then jumped back to the clock's place past the end, over and over: the user, 11/18).
+      if (what === "ended") {
+        const end = await adapter.duration();
+        if (state.playing && (opts.mayControl?.() ?? true)) send("pause", { pos: end > 0 ? end : await adapter.time() });
+        return;
+      }
+      if (isQuiet()) return;
       // Only a change from what the room has is a person's doing (the player also reports what we asked of it).
       if ((what === "play") === state.playing) return;
-      send(what, { pos: await adapter.time() });
+      // Someone who only follows (a student in the theatre) is put back where the room is.
+      if (!(opts.mayControl?.() ?? true)) return sync();
+      // Play pressed on the ended video is the player's replay: from the start, whatever it says now.
+      const t = await adapter.time();
+      send(what, { pos: what === "play" && length > 0 && t >= length - 1 ? 0 : t });
     };
     try {
       const made = await (v.provider === "youtube" ? youtube(v, mount, (w2) => void onUser(w2)) : vimeo(v, mount, (w2) => void onUser(w2)));
@@ -322,10 +390,16 @@ export function mountRoomScreen(opts: {
     if (!adapter || !state) return;
     quiet(1800);
     const want = expected();
+    if (state.cc !== undefined && state.cc !== shownCc) {
+      adapter.setCaptions(state.cc);
+      shownCc = state.cc;
+    }
     void adapter.time().then((t) => {
       if (!adapter || !state) return;
       if (Math.abs(t - want) > 1.5) adapter.seek(want);
-      if (state.playing) adapter.play();
+      // At the end (the clock ran out with nobody there to stop it): stay on the last frame, paused.
+      const atEnd = length > 0 && want >= length - 0.6;
+      if (state.playing && !atEnd) adapter.play();
       else adapter.pause();
       lastT = want;
       lastAt = performance.now();
@@ -342,16 +416,25 @@ export function mountRoomScreen(opts: {
     lastT = t;
     lastAt = now;
     // The room plays, this player doesn't, for a few seconds: the browser is waiting for a click.
-    if (state.playing && !(await adapter.running())) {
+    if (state.playing && !(await adapter.running()) && !(length > 0 && expected() >= length - 0.6)) {
       stuckSince ||= now;
       if (now - stuckSince > 3000) setStuck(true);
     } else {
       stuckSince = 0;
       setStuck(false);
     }
+    if (!length) length = await adapter.duration();
+    // The person changed the captions on the player (the theatre's lecturer): the room follows.
+    const cc = adapter.captions();
+    if (cc !== null && shownCc !== null && cc !== shownCc && (opts.mayControl?.() ?? true) && opts.onCaptions) {
+      shownCc = cc;
+      opts.onCaptions(cc);
+    } else if (cc !== null && shownCc === null) shownCc = cc;
     if (!adapter || !state || isQuiet() || !adapter.steady()) return;
     const jumped = Math.abs(t - (wasAt + (state.playing ? dt : 0))) > 1.8;
-    if (jumped) return send("seek", { pos: t });
+    // A jump while the player runs and the room is paused is "replay" (or play from a new place): say both.
+    if (jumped && (opts.mayControl?.() ?? true)) return send(!state.playing && (await adapter.running()) ? "play" : "seek", { pos: t });
+    if (jumped) return sync();
     if (state.playing && Math.abs(t - expected()) > 4) sync();
   }
 
@@ -381,7 +464,7 @@ export function mountRoomScreen(opts: {
 
   function render(): void {
     clear.hidden = !state;
-    popOut.hidden = !state;
+    popOut.hidden = !state || !!opts.theatre;
     if (!state) {
       destroy();
       say("Nothing is on yet. Paste a YouTube or Vimeo link, and everyone in the room sees it, playing in step.");
@@ -399,7 +482,7 @@ export function mountRoomScreen(opts: {
       if (!v) return render();
       const same = before && before.provider === v.provider && before.id === v.id && before.hash === v.hash;
       clear.hidden = false;
-      popOut.hidden = false;
+      popOut.hidden = !!opts.theatre;
       if (open && same && adapter) sync();
       else render();
     },
@@ -442,7 +525,6 @@ export function mountRoomScreen(opts: {
       open = false;
     },
     note: say,
-    where: () => (state ? { pos: expected(), playing: state.playing } : null),
     nudge() {
       if (adapter && state?.playing) sync();
     },

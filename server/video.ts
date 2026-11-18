@@ -23,6 +23,8 @@ export interface VideoState extends VideoRef {
   pos: number;
   /** Server clock (ms) of the last action. */
   at: number;
+  /** Captions everyone's player shows (a language code, "" for none): the lecture theatre's lecturer sets them. */
+  cc?: string;
 }
 
 /** One action a second per person, so a scrubbing hand can't flood the room. */
@@ -72,14 +74,15 @@ export const positionNow = (v: VideoState, now = Date.now()): number => (v.playi
 /** What the room is told (and nothing but this): the video, whether it plays, where it is now, and who last acted. */
 export function videoView(v: VideoState | undefined, now = Date.now()): Record<string, unknown> | null {
   if (!v) return null;
-  return { provider: v.provider, id: v.id, ...(v.hash ? { hash: v.hash } : {}), playing: v.playing, pos: Math.round(positionNow(v, now) * 10) / 10, by: v.by };
+  return { provider: v.provider, id: v.id, ...(v.hash ? { hash: v.hash } : {}), playing: v.playing, pos: Math.round(positionNow(v, now) * 10) / 10, by: v.by, ...(v.cc !== undefined ? { cc: v.cc } : {}) };
 }
 
 export type VideoOutcome = { ok: true; state: VideoState | undefined; what: string } | { ok: false; reason: string };
 
 /**
  * Applies one action to a room's video: "set" (a link), "play", "pause" and "seek" (each with the
- * sender's position), or "clear". Nothing to play or seek without a video; last action wins.
+ * sender's position), "cc" (a caption language, "" for none), or "clear". Nothing to play or seek
+ * without a video; last action wins.
  */
 export function applyVideo(state: VideoState | undefined, who: string, msg: Record<string, unknown>, now = Date.now()): VideoOutcome {
   const pos = typeof msg.pos === "number" && Number.isFinite(msg.pos) ? Math.max(0, Math.min(MAX_POS, msg.pos)) : null;
@@ -98,6 +101,13 @@ export function applyVideo(state: VideoState | undefined, who: string, msg: Reco
       if (pos === null) return { ok: false, reason: "position" };
       const playing = msg.op === "play" ? true : msg.op === "pause" ? false : state.playing;
       return { ok: true, what: "", state: { ...state, by: who, playing, pos, at: now } };
+    }
+    case "cc": {
+      if (!state) return { ok: false, reason: "no video" };
+      // A language code as the players name them ("en", "ko", "zh-Hans", "pt-BR"), or "" for none.
+      const lang = typeof msg.lang === "string" && /^([a-z]{2,3}(-[A-Za-z0-9]{2,8}){0,2})?$/.test(msg.lang) ? msg.lang : null;
+      if (lang === null) return { ok: false, reason: "captions" };
+      return { ok: true, what: "", state: { ...state, by: who, pos: positionNow(state, now), at: now, cc: lang } };
     }
     default:
       return { ok: false, reason: "op" };
