@@ -64,7 +64,7 @@
 .myroom-buttons { display: flex; gap: 8px; }
 .myroom-buttons button { flex: 1; min-height: 44px; border-radius: 10px; font: 700 0.95rem system-ui, sans-serif; cursor: pointer; }
 
-/* "🏠 My Room" (top right row) and the guest's notice on the way in. */
+/* The My Room house (top right row) and the guest's notice on the way in. */
 #myroom-btn { position: fixed; z-index: 6; }
 #myroom-guest { position: fixed; inset: 0; z-index: 41; display: grid; place-items: center; padding: 16px; background: rgba(20, 20, 20, 0.45); }
 #myroom-guest[hidden] { display: none; }

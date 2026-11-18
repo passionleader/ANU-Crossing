@@ -364,7 +364,7 @@ const guide = mountGuide({ onTourDone: () => quests.show(playing), onTourStart: 
 guideBtn.addEventListener("click", () => guide.open());
 
 // --- My Room (the user, 11/18) -------------------------------------------------------------
-// Everyone's own room (spaces/myroom.ts, server/myroom.ts): a round 🏠 button left of the guide takes
+// Everyone's own room (spaces/myroom.ts, server/myroom.ts): a round house button (icons.ts) left of the guide takes
 // you there from anywhere (back out, you're by the residence's door on the north road, which also
 // leads in). Inside, the room window has its owner's notebook, calendar and furniture editor.
 // The lecture theatre's screen, buttons and Q&A (theatreui.ts; server/theatre.ts).
@@ -393,7 +393,7 @@ const myRoomBtn = document.createElement("button");
 myRoomBtn.type = "button";
 myRoomBtn.id = "myroom-btn";
 myRoomBtn.className = "round-btn";
-myRoomBtn.textContent = "🏠";
+myRoomBtn.innerHTML = ICONS.home;
 myRoomBtn.title = "My Room";
 myRoomBtn.setAttribute("aria-label", "Go to My Room");
 myRoomBtn.hidden = true;
