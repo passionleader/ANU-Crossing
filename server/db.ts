@@ -336,9 +336,13 @@ db.exec(`
     BEGIN DELETE FROM item_reports WHERE kind = 'post-comment' AND target = OLD.id; DELETE FROM hidden_items WHERE kind = 'post-comment' AND target = OLD.id; END;
 `);
 
-// The classroom there's always been. (COMMON, the room for anyone, was the
-// second until the ANUSA Student Lounge replaced it; main.ts clears it out.)
-db.prepare("INSERT OR IGNORE INTO classrooms (code) VALUES (?)").run("COMP8020");
+// The classrooms that are always there: COMP8020, the course's own, and COMP6300, so a fresh
+// server (Render wipes the database on every restart) has a second course room to show. (COMMON,
+// the room for anyone, was once the second, until the ANUSA Student Lounge replaced it; main.ts
+// clears it out.) COMP6300 is an ordinary room otherwise: staff may set its boards or close it,
+// and the next start opens it again.
+export const DEFAULT_CLASSROOMS = ["COMP8020", "COMP6300"] as const;
+for (const code of DEFAULT_CLASSROOMS) db.prepare("INSERT OR IGNORE INTO classrooms (code) VALUES (?)").run(code);
 
 // --- visitors --------------------------------------------------------------
 
@@ -928,10 +932,10 @@ export function addClassroom(code: string, by: string): boolean {
   return changes > 0;
 }
 
-/** Classrooms opened more than `months` ago (never COMP8020): a course's room for one semester. */
+/** Classrooms opened more than `months` ago (never a default one): a course's room for one semester. */
 export function staleClassrooms(months = 6): string[] {
   return (
-    db.prepare(`SELECT code FROM classrooms WHERE code != 'COMP8020' AND created_at <= datetime('now', '-${Math.floor(months)} months')`).all() as {
+    db.prepare(`SELECT code FROM classrooms WHERE code NOT IN (${DEFAULT_CLASSROOMS.map((c) => `'${c}'`).join(", ")}) AND created_at <= datetime('now', '-${Math.floor(months)} months')`).all() as {
       code: string;
     }[]
   ).map((r) => r.code);

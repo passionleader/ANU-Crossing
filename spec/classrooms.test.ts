@@ -13,6 +13,8 @@ describe("classrooms", () => {
     const list = (await (await api("/api/classrooms")).json()) as { code: string; space: string }[];
     expect(list[0]).toEqual(expect.objectContaining({ code: "COMP8020", space: "comp8020" }));
     expect(list.map((c) => c.code)).not.toContain("COMMON");
+    // A fresh server also opens COMP6300, so there is a second course room to show.
+    expect(list.map((c) => c.code)).toContain("COMP6300");
     // The lounge is a space of its own, with no notes in it.
     const v = await visitor();
     expect((await api("/api/notes", "POST", { token: v.token, space: "anusa", x: 0, z: 0, text: "hi" })).status).toBe(400);
@@ -20,11 +22,11 @@ describe("classrooms", () => {
 
   it("refuses to let an ordinary visitor open or close one", async () => {
     const v = await visitor();
-    expect((await api("/api/classrooms", "POST", { token: v.token, code: "COMP6300" })).status).toBe(403);
+    expect((await api("/api/classrooms", "POST", { token: v.token, code: "COMP6710" })).status).toBe(403);
     expect((await api("/api/classrooms/COMP8020", "DELETE", { token: v.token })).status).toBe(403);
-    expect((await api("/api/classrooms", "POST", { code: "COMP6300" })).status).toBe(401);
+    expect((await api("/api/classrooms", "POST", { code: "COMP6710" })).status).toBe(401);
     const list = (await (await api("/api/classrooms")).json()) as { code: string }[];
-    expect(list.map((c) => c.code)).not.toContain("COMP6300");
+    expect(list.map((c) => c.code)).not.toContain("COMP6710");
     expect(list.map((c) => c.code)).toContain("COMP8020");
   });
 

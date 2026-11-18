@@ -53,7 +53,7 @@ export function mountClassPicker(h: {
   const input = document.createElement("input");
   input.type = "text";
   input.maxLength = 8;
-  input.placeholder = "COMP6300";
+  input.placeholder = "COMP2100";
   input.autocomplete = "off";
   input.spellcheck = false;
   input.setAttribute("aria-label", "New classroom code");

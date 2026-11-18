@@ -921,7 +921,7 @@ app.post("/api/classrooms", async (c) => {
     log("refused", v, { action: "create classroom", code, reason: "not staff" }, { ip: ipOf(c) });
     return c.json({ error: "Only staff can open a classroom." }, 403);
   }
-  if (!CLASSROOM_CODE.test(code)) return c.json({ error: "Use a course code like COMP6300." }, 400);
+  if (!CLASSROOM_CODE.test(code)) return c.json({ error: "Use a course code like COMP2100." }, 400);
   if (!addClassroom(code, v.name)) return c.json({ error: `${code} is already open.` }, 409);
   log("classroom-created", v, { code, space: classroomSpace(code) }, { ip: ipOf(c) });
   broadcastAll({ t: "action", kind: "classrooms", classrooms: classroomList() });

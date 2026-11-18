@@ -77,17 +77,17 @@ describe("passwords and text", () => {
 describe("classrooms the admin opens and closes", () => {
   it("opens one, and closing it takes its notes and sends its visitors outside", async () => {
     const spaces = await import("../server/spaces.ts");
-    expect(db.addClassroom("COMP6300", "qa_master")).toBe(true);
-    expect(db.addClassroom("COMP6300", "qa_master")).toBe(false);
-    expect(spaces.isSpace("comp6300")).toBe(true);
+    expect(db.addClassroom("COMP6710", "qa_master")).toBe(true);
+    expect(db.addClassroom("COMP6710", "qa_master")).toBe(false);
+    expect(spaces.isSpace("comp6710")).toBe(true);
 
     db.createVisitor("pupil", "t-pupil");
-    const r = db.addNote("pupil", "comp6300", 0, 0, "hi class");
+    const r = db.addNote("pupil", "comp6710", 0, 0, "hi class");
     if (!r.ok) throw new Error("cooldown");
-    db.saveLastSpot("pupil", "comp6300", 1, 2);
+    db.saveLastSpot("pupil", "comp6710", 1, 2);
 
-    expect(db.removeClassroom("COMP6300")).toBe(true);
-    expect(spaces.isSpace("comp6300")).toBe(false);
+    expect(db.removeClassroom("COMP6710")).toBe(true);
+    expect(spaces.isSpace("comp6710")).toBe(false);
     expect(db.findNote(r.note.id)).toBeUndefined();
     expect(db.lastSpot("pupil").space).toBe("outdoor");
   });
@@ -116,12 +116,13 @@ describe("classrooms the admin opens and closes", () => {
 });
 
 describe("classrooms last a semester", () => {
-  it("lists a classroom six months old to close, but never COMP8020", () => {
+  it("lists a classroom six months old to close, but never COMP8020 or COMP6300", () => {
     db.addClassroom("COMP6600", "qa_master");
-    raw.prepare("UPDATE classrooms SET created_at = datetime('now', '-7 months') WHERE code IN ('COMP6600', 'COMP8020')").run();
+    raw.prepare("UPDATE classrooms SET created_at = datetime('now', '-7 months') WHERE code IN ('COMP6600', 'COMP8020', 'COMP6300')").run();
     const stale = db.staleClassrooms();
     expect(stale).toContain("COMP6600");
     expect(stale).not.toContain("COMP8020");
+    expect(stale).not.toContain("COMP6300");
     db.removeClassroom("COMP6600");
   });
 });
