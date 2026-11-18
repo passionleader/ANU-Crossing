@@ -18,3 +18,11 @@ from the author's GitHub account (passionleader).
 
 Third-party assets keep their own licences, listed in
 client/public/assets/CREDITS.md (most are CC0).
+
+One file in this repository is not covered by the terms above:
+client/src/spaces/osmscape-data.ts holds road, building and tree positions
+derived from OpenStreetMap data, so it is © OpenStreetMap contributors and
+available under the Open Database Licence (ODbL 1.0),
+https://opendatacommons.org/licenses/odbl/1-0/. Anyone may copy and use that
+file under the ODbL's terms (credit OpenStreetMap, and share any adapted
+version of it under the same licence).

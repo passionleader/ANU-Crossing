@@ -25,7 +25,7 @@ import { fetchedAt, finishRun, savePage, startRun, stats } from "./knowledge.ts"
 //   canberra   ANU transport and safety pages, Transport Canberra (buses,
 //              light rail, MyWay+), cost of living and food relief
 
-const UA = "ANU-Crossing-campus-guide/1.0 (unofficial student project, not an AI training crawler; contact u8321477@anu.edu.au)";
+const UA = "ANU-Crossing-campus-guide/1.0 (unofficial student project, reads pages only to answer questions, never to train a model; contact u8321477@anu.edu.au)";
 const GAP_MS = Number(process.env.CRAWL_GAP_MS) || 2000;
 /** A page read within this long is skipped (so a crawl that stopped picks up where it was). */
 const FRESH_DAYS = Number(process.env.CRAWL_FRESH_DAYS ?? 20);

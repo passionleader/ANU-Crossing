@@ -218,6 +218,14 @@ backdrop plane and turntable are hidden in code, not edited out of the file.
 
 ## Map data
 
+**`client/src/spaces/osmscape-data.ts` is © OpenStreetMap contributors, under
+the Open Database Licence (ODbL 1.0), https://opendatacommons.org/licenses/odbl/1-0/,
+and is not covered by the repository's "all rights reserved" LICENSE.** It is
+a derived database of OpenStreetMap features (simplified coordinates and
+building heights), so it stays under the ODbL: anyone may use it with credit
+to OpenStreetMap, and a changed version of it must be shared under the same
+licence. The app shows the credit on its Credits page and in its terms of use.
+
 Where Badger & Co., Sullivans Creek, its footbridge and the lawn sit relative
 to 154 and 155 was checked against OpenStreetMap data (an export of the
 area around Kambri), read for positions only: no map tiles or OSM files ship
