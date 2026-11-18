@@ -1,0 +1,18 @@
+/* A Markdown editor taking a dropped picture (dropzone.ts): a label over it while a file is dragged in. */
+.dropzone { position: relative; }
+.dropzone-cover { display: none; }
+.dropzone.is-dropping > .dropzone-cover {
+  position: absolute;
+  inset: 4px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 3px dashed var(--accent, #6b3f1d);
+  border-radius: 12px;
+  background: rgba(252, 248, 236, 0.92);
+  color: var(--ink, #3b2a12);
+  font: 700 1.15rem system-ui, sans-serif;
+  pointer-events: none;
+}
+/* A refused or failed picture, said where it can't be missed. */
+.is-alert { color: #a3261b !important; font-weight: 700; }

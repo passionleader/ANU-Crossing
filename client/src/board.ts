@@ -14,6 +14,7 @@ import "./board.css";
 import { clearDraft, loadDraft, saveDraft } from "./drafts.ts";
 import { renderMarkdown } from "./markdown.ts";
 import type { ItemRef } from "./api.ts";
+import { dropPictures } from "./dropzone.ts";
 import { hotBadge } from "./notepanel.ts";
 import { ACCEPT, MAX_FILE_BYTES, isImage, sizeLabel } from "./uploads.ts";
 import { canberraTime } from "./when.ts";
@@ -1010,12 +1011,17 @@ export function mountBoard(h: {
   });
   backBtn.addEventListener("click", () => void goBack());
   // Pictures into the text: each goes up now, then in as a line of its own where the cursor was.
+  /** A picture that couldn't go in: said in red and brought into view (the error sits under a long form). */
+  function pictureError(msg: string): void {
+    setError(msg);
+    error.scrollIntoView({ block: "nearest" });
+  }
   async function addPictures(files: File[]): Promise<void> {
     const pics = files.filter((f) => isImage(f.name));
-    if (!pics.length) return setError("Only pictures (png, jpg, gif, webp) go into the text; other files go under Files.");
+    if (!pics.length) return pictureError("Only pictures (png, jpg, gif, webp) go into the text; other files go under Files.");
     for (const f of pics) {
       if (f.size > MAX_FILE_BYTES) {
-        setError("Files can be up to 200 MB.");
+        pictureError("Files can be up to 200 MB.");
         continue;
       }
       picBusy++;
@@ -1028,7 +1034,7 @@ export function mountBoard(h: {
       uploadStatus.textContent = "";
       uploadStatus.hidden = editingPost;
       if (typeof r === "string") {
-        setError(r);
+        pictureError(`Couldn't add ${f.name}: ${r}`);
         updateCounters();
         continue;
       }
@@ -1049,20 +1055,9 @@ export function mountBoard(h: {
     picInput.value = "";
     void addPictures(files);
   });
-  textInput.addEventListener("dragover", (e) => {
-    if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) {
-      e.preventDefault();
-      textInput.classList.add("board-drop");
-    }
-  });
-  textInput.addEventListener("dragleave", () => textInput.classList.remove("board-drop"));
-  textInput.addEventListener("drop", (e) => {
-    textInput.classList.remove("board-drop");
-    const files = [...(e.dataTransfer?.files ?? [])];
-    if (!files.length) return;
-    e.preventDefault();
-    void addPictures(files);
-  });
+  // The whole writing form (a new post or an edit) takes a dropped picture (dropzone.ts), not only
+  // the text box; the Files box below keeps its own drop for attachments.
+  dropPictures(writeView, (files) => void addPictures(files), "Drop the picture into the text");
   textInput.addEventListener("paste", (e) => {
     const files = [...(e.clipboardData?.files ?? [])];
     if (!files.some((f) => isImage(f.name) || /^image\//.test(f.type))) return;

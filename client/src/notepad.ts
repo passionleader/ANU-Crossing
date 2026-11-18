@@ -1,4 +1,5 @@
 import "./notepad.css";
+import { dropPictures } from "./dropzone.ts";
 import { renderMarkdown } from "./markdown.ts";
 
 // Your own Markdown notes, in the lecture theatre's side panel and at My Room's desk (the user,
@@ -155,6 +156,7 @@ export function mountNotePad(opts: {
   }
   const dirty = (): boolean => text.value.trim() !== "" && text.value !== savedText;
   function status(): void {
+    foot.classList.remove("is-alert");
     if (!opts.member()) foot.textContent = opts.guestNote;
     else if (!text.value.trim()) foot.textContent = "Not kept until you press Save. Closing clears the page.";
     else foot.textContent = dirty() ? `Not saved yet · ${text.value.length}/${MAX}` : `Saved to your mailbox · ${text.value.length}/${MAX}`;
@@ -194,22 +196,27 @@ export function mountNotePad(opts: {
   }
   saveBtn.addEventListener("click", () => void save());
 
+  /** Says something went wrong, in red, where the eye already is. */
+  function alert(msg: string): void {
+    foot.textContent = msg;
+    foot.classList.add("is-alert");
+  }
   async function addImages(files: File[]): Promise<void> {
-    if (!opts.member()) {
-      foot.textContent = opts.guestNote;
-      return;
-    }
-    for (const f of files.filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name))) {
+    if (!opts.member()) return alert(opts.guestNote);
+    const pics = files.filter((f) => /^image\/(png|jpeg|gif|webp)$/.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+    if (!pics.length) return alert("Only pictures (png, jpg, gif or webp) go into your notes.");
+    for (const f of pics) {
       const name = f.name.replace(/[[\]()\n]/g, "") || "picture";
       const at = text.selectionStart ?? text.value.length;
       uploading.add(name);
       render();
+      foot.classList.remove("is-alert");
       foot.textContent = `Uploading ${name}…`;
       const r = await opts.addImage(f);
       uploading.delete(name);
       if (typeof r === "string") {
         render();
-        foot.textContent = r;
+        alert(`Couldn't add ${name}: ${r}`);
         continue;
       }
       const v = text.value;
@@ -227,22 +234,8 @@ export function mountNotePad(opts: {
     picker.value = "";
     void addImages(files);
   });
-  for (const zone of [text, view] as HTMLElement[]) {
-    zone.addEventListener("dragover", (e) => {
-      if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) {
-        e.preventDefault();
-        el.classList.add("is-drop");
-      }
-    });
-    zone.addEventListener("dragleave", () => el.classList.remove("is-drop"));
-    zone.addEventListener("drop", (e) => {
-      el.classList.remove("is-drop");
-      const files = [...(e.dataTransfer?.files ?? [])];
-      if (!files.length) return;
-      e.preventDefault();
-      void addImages(files);
-    });
-  }
+  // The whole pad takes a dropped picture (dropzone.ts), not only the box.
+  dropPictures(el, (files) => void addImages(files));
   text.addEventListener("paste", (e) => {
     const files = [...(e.clipboardData?.files ?? [])];
     if (!files.some((f) => /^image\//.test(f.type))) return;

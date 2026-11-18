@@ -1,4 +1,5 @@
 import "./roompad.css";
+import { dropPictures } from "./dropzone.ts";
 import { renderMarkdown } from "./markdown.ts";
 
 // A meeting room's shared notes (plan 39): one Markdown text for everyone
@@ -223,10 +224,18 @@ export function mountRoomPad(opts: {
     text.value = value;
     opts.onChange(value);
     render();
+    foot.classList.remove("is-alert");
     foot.textContent = "Saved for the room.";
   }
   async function addImages(files: File[]): Promise<void> {
-    for (const f of files.filter((f) => /^image\//.test(f.type))) {
+    const pics = files.filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|gif|webp)$/i.test(f.name));
+    if (!pics.length) {
+      foot.textContent = "Only pictures go into the notes; share other files with 📎 in the chat.";
+      foot.classList.add("is-alert");
+      return;
+    }
+    for (const f of pics) {
+      foot.classList.remove("is-alert");
       foot.textContent = `Sharing ${f.name}…`;
       const mine = { line: lineAt(text.selectionStart ?? text.value.length), name: f.name };
       uploading.add(mine);
@@ -235,23 +244,15 @@ export function mountRoomPad(opts: {
       uploading.delete(mine);
       if (typeof r === "string") {
         render();
-        foot.textContent = r;
+        foot.textContent = `Couldn't add ${f.name}: ${r}`;
+        foot.classList.add("is-alert");
         return;
       }
       insertLine(`![${f.name.replace(/[[\]()]/g, "")}](room-file:${r.id})`);
     }
   }
-  for (const zone of [text, view] as HTMLElement[]) {
-    zone.addEventListener("dragover", (e: DragEvent) => {
-      if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) e.preventDefault();
-    });
-    zone.addEventListener("drop", (e: DragEvent) => {
-      const files = [...(e.dataTransfer?.files ?? [])];
-      if (!files.length) return;
-      e.preventDefault();
-      void addImages(files);
-    });
-  }
+  // The whole notes view takes a dropped picture (dropzone.ts), not only the box.
+  dropPictures(root, (files) => void addImages(files));
   text.addEventListener("paste", (e) => {
     const files = [...(e.clipboardData?.files ?? [])];
     if (!files.some((f) => /^image\//.test(f.type))) return;
@@ -279,6 +280,7 @@ export function mountRoomPad(opts: {
     window.clearTimeout(timer);
     timer = 0;
     opts.onChange(text.value);
+    foot.classList.remove("is-alert");
     foot.textContent = "Saved for the room.";
   }
   text.addEventListener("blur", () => {
@@ -300,8 +302,10 @@ export function mountRoomPad(opts: {
     timer = window.setTimeout(() => {
       timer = 0;
       opts.onChange(text.value);
+      foot.classList.remove("is-alert");
       foot.textContent = "Saved for the room.";
     }, 400);
+    foot.classList.remove("is-alert");
     foot.textContent = "…";
     renderSoon();
   }
@@ -337,6 +341,7 @@ export function mountRoomPad(opts: {
     pending = null;
     load.hidden = true;
     text.value = value;
+    foot.classList.remove("is-alert");
     foot.textContent = by ? `Last edited by ${by}.` : "";
     render();
   }

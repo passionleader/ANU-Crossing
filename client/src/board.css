@@ -700,7 +700,6 @@
 /* A field's hint, under its name. */
 .board-pic-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
 .board-pic-row .board-pic-hint { display: inline; margin: 0; }
-.board-form textarea.board-drop { outline: 2px dashed #7a5638; outline-offset: 2px; }
 .md-picture .board-image img { max-height: 420px; }
 .board-hint { display: block; margin-top: 2px; font-size: 0.78rem; font-weight: 400; opacity: 0.7; }
 /* Buttons keep their words on one line ("Join group", "Leave group"). */
