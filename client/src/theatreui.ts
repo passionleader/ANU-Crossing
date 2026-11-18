@@ -306,7 +306,8 @@ export function mountTheatreUi(deps: {
   // The player is under the 3D view, where a click can't reach it: a browser that waits for a click
   // before playing (startHint) starts on any click or key on the page.
   const nudge = (): void => {
-    if (inside && hasVideo) screen.nudge();
+    // Not for a lecturer steering in Big view: their clicks are theirs (the player itself sends them).
+    if (inside && hasVideo && !(big && deps.isStaff())) screen.nudge();
   };
   window.addEventListener("pointerdown", nudge, true);
   window.addEventListener("keydown", nudge, true);

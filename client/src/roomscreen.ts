@@ -232,10 +232,29 @@ export function mountRoomScreen(opts: {
   };
   /** Captions this player last showed, to tell the person changing them from the room's. */
   let shownCc: string | null = null;
+  // The server takes one play, pause or seek a second from each person and refuses the rest, and a
+  // refusal puts the player back where the room was: a pause then a seek undid the seek. So the
+  // player's own actions go out at most once a second, the latest one waiting its turn.
+  const GAP_MS = 1100;
+  let sentAt = 0;
+  let waiting: { op: string; extra?: Record<string, unknown> } | null = null;
+  let waitTimer = 0;
+  const flush = (): void => {
+    waitTimer = 0;
+    const next = waiting;
+    waiting = null;
+    if (!next) return;
+    sentAt = performance.now();
+    quiet(1500);
+    if (!opts.send(next.op, next.extra)) opts.onNotSent();
+  };
   const send = (op: string, extra?: Record<string, unknown>): void => {
     // Our own echo (the server tells everyone, us too) settles it; until then the player isn't judged.
     quiet(1500);
-    if (!opts.send(op, extra)) opts.onNotSent();
+    waiting = { op, extra };
+    const wait = GAP_MS - (performance.now() - sentAt);
+    if (wait <= 0) return flush();
+    if (!waitTimer) waitTimer = window.setTimeout(flush, wait);
   };
 
   function say(msg: string): void {
@@ -513,6 +532,9 @@ export function mountRoomScreen(opts: {
       shares.hidden = remote.childElementCount === 0 && !on;
     },
     reset() {
+      window.clearTimeout(waitTimer);
+      waitTimer = 0;
+      waiting = null;
       state = null;
       destroy();
       remote.replaceChildren();
@@ -526,7 +548,13 @@ export function mountRoomScreen(opts: {
     },
     note: say,
     nudge() {
-      if (adapter && state?.playing) sync();
+      // Only a player that is held (the room plays, it doesn't, for a while: the browser waits for a
+      // click) is started. Anything more forced it back to the room on every click and key, and its
+      // quiet window then swallowed the lecturer's own pause or seek (the user, 11/18: "about 80%").
+      if (adapter && state?.playing && stuck) {
+        adapter.play();
+        stuckSince = 0;
+      }
     },
   };
 }
