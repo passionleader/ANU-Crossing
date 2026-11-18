@@ -43,6 +43,7 @@ export function mountTheatreUi(deps: {
     send: (op, extra) => deps.send({ t: "action", kind: "theatre", what: "video", op, ...extra }),
     onShare: () => undefined,
     onNotSent: deps.notSent,
+    onStuck: (on) => void (startHint.hidden = !on),
   });
   const frameEl = document.createElement("div");
   frameEl.id = "theatre-screen";
@@ -54,6 +55,12 @@ export function mountTheatreUi(deps: {
   bigClose.textContent = "✕ Back to the theatre";
   bigClose.hidden = true;
   frameEl.append(bigClose);
+  // A browser plays a video with sound only after a first click on the page; until then, say so.
+  const startHint = document.createElement("p");
+  startHint.className = "theatre-start-hint";
+  startHint.textContent = "▶ Click the video once to join in";
+  startHint.hidden = true;
+  frameEl.append(startHint);
   document.body.append(frameEl);
 
   // --- the buttons -----------------------------------------------------------------------

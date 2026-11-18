@@ -27,6 +27,8 @@ interface Adapter {
   time(): Promise<number>;
   /** False while it's buffering or not started, so a stall isn't taken for a seek. */
   steady(): boolean;
+  /** Whether it's playing (or buffering) right now, not stopped or waiting to start. */
+  running(): Promise<boolean>;
   destroy(): void;
 }
 
@@ -96,6 +98,8 @@ export function mountRoomScreen(opts: {
   /** Starts or stops sharing your screen. */
   onShare(on: boolean): void;
   onNotSent(): void;
+  /** The room is playing but this browser's player hasn't started (a browser waits for a first click before sound). */
+  onStuck?(stuck: boolean): void;
 }): {
   el: HTMLElement;
   /** The room's video as the server says it is now (null: none). */
@@ -185,6 +189,16 @@ export function mountRoomScreen(opts: {
   let poll = 0;
   let lastT = 0;
   let lastAt = 0;
+  let stuckSince = 0;
+  let stuck = false;
+  const STUCK_NOTE = "Press play on the player once: this browser waits for a click before it plays a video.";
+  function setStuck(on: boolean): void {
+    if (on === stuck) return;
+    stuck = on;
+    if (on) say(STUCK_NOTE);
+    else if (status.textContent === STUCK_NOTE) say("");
+    opts.onStuck?.(on);
+  }
 
   const expected = (): number => (state ? state.pos + (state.playing ? (performance.now() - stateAt) / 1000 : 0) : 0);
   const send = (op: string, extra?: Record<string, unknown>): void => {
@@ -200,6 +214,8 @@ export function mountRoomScreen(opts: {
   function destroy(): void {
     window.clearInterval(poll);
     poll = 0;
+    stuckSince = 0;
+    setStuck(false);
     building++;
     try {
       adapter?.destroy();
@@ -227,6 +243,7 @@ export function mountRoomScreen(opts: {
               seek: (s) => p.seekTo(s, true),
               time: async () => p.getCurrentTime(),
               steady: () => [1, 2].includes(p.getPlayerState()),
+              running: async () => [1, 3].includes(p.getPlayerState()),
               destroy: () => p.destroy(),
             }),
           // 1 playing, 2 paused: a person pressing the player's own buttons.
@@ -251,6 +268,7 @@ export function mountRoomScreen(opts: {
       seek: (s) => void p.setCurrentTime(s).catch(() => {}),
       time: () => p.getCurrentTime(),
       steady: () => true,
+      running: async () => !(await p.getPaused()),
       destroy: () => void p.destroy().catch(() => {}),
     };
   }
@@ -319,7 +337,15 @@ export function mountRoomScreen(opts: {
     const wasAt = lastT;
     lastT = t;
     lastAt = now;
-    if (isQuiet() || !adapter.steady()) return;
+    // The room plays, this player doesn't, for a few seconds: the browser is waiting for a click.
+    if (state.playing && !(await adapter.running())) {
+      stuckSince ||= now;
+      if (now - stuckSince > 3000) setStuck(true);
+    } else {
+      stuckSince = 0;
+      setStuck(false);
+    }
+    if (!adapter || !state || isQuiet() || !adapter.steady()) return;
     const jumped = Math.abs(t - (wasAt + (state.playing ? dt : 0))) > 1.8;
     if (jumped) return send("seek", { pos: t });
     if (state.playing && Math.abs(t - expected()) > 4) sync();
