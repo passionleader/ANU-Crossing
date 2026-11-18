@@ -1479,6 +1479,27 @@ export function filesOn(on: "post" | "bug", id: number, all = false): (FileInfo 
     .all(id) as unknown as (FileInfo & { key: string })[];
 }
 
+/**
+ * A picture dropped into a board post's text before the post is saved (or while editing it) is
+ * uploaded at once with no post yet ("loose"); saving the post takes the author's own loose
+ * pictures its text names (`board-file:ID`) onto it, up to `max` files on the post in all.
+ * Returns how many it took. A loose picture nobody saved is purged after a day.
+ */
+export function claimBoardPictures(postId: number, owner: string, text: string, max: number): number {
+  const ids = [...new Set([...text.matchAll(/\(board-file:([A-Za-z0-9-]+)\)/g)].map((m) => m[1]!))];
+  let room = max - filesOn("post", postId, true).length;
+  let taken = 0;
+  const take = db.prepare(`UPDATE files SET post_id = ? WHERE id = ? AND kind = 'board' AND post_id IS NULL AND owner = ? AND ready = 1 AND ${FRESH}`);
+  for (const id of ids) {
+    if (room <= 0) break;
+    if (take.run(postId, id, owner).changes) {
+      room--;
+      taken++;
+    }
+  }
+  return taken;
+}
+
 /** How many uploads `owner` has asked for in the last day. */
 export function uploadsToday(owner: string): number {
   return (db.prepare("SELECT COUNT(*) AS n FROM files WHERE owner = ? AND created_at > datetime('now', '-1 day')").get(owner) as { n: number }).n;
@@ -1495,13 +1516,16 @@ export function dropRoomFiles(room: string): string[] {
 }
 
 /**
- * Forgets uploads that never arrived (asked for over an hour ago) and files
- * past their 30 days; returns the S3 keys of the ones that never arrived,
- * in case half of one did (the bucket clears the rest itself).
+ * Forgets uploads that never arrived (asked for over an hour ago), board
+ * pictures no post took within a day, and files past their 30 days; returns
+ * the S3 keys of the first two (half of one may have arrived; the bucket
+ * clears the rest itself).
  */
 export function purgeFiles(): string[] {
-  const stale = db.prepare("SELECT key FROM files WHERE ready = 0 AND created_at <= datetime('now', '-1 hour')").all() as { key: string }[];
-  db.prepare("DELETE FROM files WHERE (ready = 0 AND created_at <= datetime('now', '-1 hour')) OR NOT " + FRESH).run();
+  // Also a board picture dropped into a post that was never saved (no post a day on).
+  const loose = "(kind = 'board' AND post_id IS NULL AND created_at <= datetime('now', '-1 day'))";
+  const stale = db.prepare(`SELECT key FROM files WHERE (ready = 0 AND created_at <= datetime('now', '-1 hour')) OR ${loose}`).all() as { key: string }[];
+  db.prepare(`DELETE FROM files WHERE (ready = 0 AND created_at <= datetime('now', '-1 hour')) OR ${loose} OR NOT ${FRESH}`).run();
   return stale.map((r) => r.key);
 }
 

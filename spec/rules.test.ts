@@ -322,3 +322,35 @@ describe("pictures in saved notes", () => {
     expect(db.findFile("pic-kept")).toBeUndefined();
   });
 });
+
+describe("pictures dropped into a board post's text", () => {
+  it("go to the post that names them, the author's own only, five files at most, and are purged if no post takes them", () => {
+    db.createVisitor("picwriter", "t-picwriter");
+    db.createVisitor("picother", "t-picother");
+    const r = db.addPost("picwriter", "comp8020", "board", "pics", "text");
+    if (!r.ok) throw new Error("cooldown");
+    const loose = (id: string, owner: string, ago = "0 hours") => {
+      db.addFile({ id, kind: "board", owner, name: `${id}.png`, size: 10, key: `board-files/${id}.png`, postId: null, bugId: null, room: null });
+      db.markFileReady(id);
+      raw.prepare(`UPDATE files SET created_at = datetime('now', '-${ago}') WHERE id = ?`).run(id);
+    };
+    for (const id of ["p1", "p2", "p3", "p4", "p5", "p6"]) loose(id, "picwriter");
+    loose("theirs", "picother");
+    const text = ["p1", "p2", "theirs", "p3", "p4", "p5", "p6"].map((id) => `![x](board-file:${id})`).join("\n");
+    // Someone else's picture is never taken; the sixth of the author's is past the five.
+    expect(db.claimBoardPictures(r.post.id, "picwriter", text, 5)).toBe(5);
+    expect(db.filesOn("post", r.post.id).map((f) => f.id)).toEqual(["p1", "p2", "p3", "p4", "p5"]);
+    expect(db.findFile("theirs")?.postId).toBeNull();
+    // Taken once, it isn't taken again by another post.
+    raw.prepare("UPDATE visitors SET last_post_at = NULL WHERE name = 'picwriter'").run();
+    const r2 = db.addPost("picwriter", "comp8020", "board", "again", "text");
+    if (!r2.ok) throw new Error("cooldown");
+    expect(db.claimBoardPictures(r2.post.id, "picwriter", "![x](board-file:p1)", 5)).toBe(0);
+    // A loose picture a day old goes in the hourly purge; one a post took stays.
+    loose("old", "picwriter", "25 hours");
+    raw.prepare("UPDATE files SET created_at = datetime('now', '-25 hours') WHERE id = 'p1'").run();
+    expect(db.purgeFiles()).toContain("board-files/old.png");
+    expect(db.findFile("old")).toBeUndefined();
+    expect(db.findFile("p1")?.postId).toBe(r.post.id);
+  });
+});

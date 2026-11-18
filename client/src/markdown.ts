@@ -14,11 +14,12 @@ export interface MarkdownOptions {
   rich?: boolean;
   /** Marks each block with data-line, its line in `text` (0-based), so a click can find its source. */
   lines?: boolean;
-  /** A line that is only ![alt](room-file:ID): the node to draw for it (null: leave it as text). */
+  /** A line that is only ![alt](room-file:ID) (or board-file:, note-file:): the node to draw for it (null: leave it as text). */
   picture?: (alt: string, id: string) => Node | null;
 }
 
-const PICTURE = /^!\[([^\]]*)\]\(room-file:([A-Za-z0-9-]+)\)\s*$/;
+// A meeting room's shared notes, a board post and a saved note each name their own uploads.
+const PICTURE = /^!\[([^\]]*)\]\((?:room|board|note)-file:([A-Za-z0-9-]+)\)\s*$/;
 const RULE = /^ {0,3}([-*_])(\s*\1){2,}\s*$/;
 const BULLET = /^(\s*)[-*+]\s+/;
 const NUMBERED = /^(\s*)\d+[.)]\s+/;

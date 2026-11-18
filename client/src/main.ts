@@ -1607,6 +1607,12 @@ const board = mountBoard({
     }
     return null;
   },
+  async addPicture(file, progress) {
+    if (!session || !space) return "Join first.";
+    let id = "";
+    const error = await upload(session.token, { kind: "board", space: boardKey || space.id }, file, progress, (got) => (id = got));
+    return error ?? { id };
+  },
   async openFile(id) {
     if (!session) return "Join first.";
     return openFile(session.token, id);

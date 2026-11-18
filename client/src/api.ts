@@ -308,7 +308,9 @@ export const heartPostComment = (token: string, id: number): Promise<{ hearted: 
 
 // --- files (see uploads.ts) ---------------------------------------------------
 
-export type FileTarget = { kind: "bug"; bug: number } | { kind: "board"; post: number } | { kind: "room" };
+// A board picture with a `space` and no post goes into the text of a post being written; saving
+// the post takes it (server: claimBoardPictures).
+export type FileTarget = { kind: "bug"; bug: number } | { kind: "board"; post: number } | { kind: "board"; space: string } | { kind: "room" };
 export const askUpload = (token: string, target: FileTarget, name: string, size: number): Promise<{ id: string; url: string; type: string }> =>
   request("/api/files", "POST", { token, ...target, name, size });
 export const uploadDone = (token: string, id: string): Promise<unknown> => request(`/api/files/${id}/done`, "POST", { token });

@@ -4,7 +4,10 @@
 // into its text and comments, and anyone can write a post or a comment. The
 // server decides who may post in a staff-only tab (lecturers and staff) and who may
 // delete what; this only hides the buttons a visitor couldn't use. A post can
-// carry up to five files (200 MB each), which upload once the post is up.
+// carry up to five files (200 MB each), which upload once the post is up. A
+// picture dragged, pasted or added (🖼) into the text, writing or editing,
+// goes up at once and in as a line ![name](board-file:ID), shown in place;
+// saving the post makes it the post's (server: claimBoardPictures).
 
 import { clearFile, prettyFile } from "./filepick.ts";
 import "./board.css";
@@ -132,6 +135,8 @@ export function mountBoard(h: {
   /** A link that shows one of a post's pictures in place, or null. */
   imageLink(id: string): Promise<string | null>;
   comment(postId: number, text: string): Promise<string | null>;
+  /** Uploads a picture for the post being written (no post yet); resolves to its id, or an error message. */
+  addPicture(file: File, progress: (done: number) => void): Promise<{ id: string } | string>;
   /** Changes the visitor's own post's title and text (files stay); resolves to an error message, or null. */
   editPost(postId: number, title: string, text: string, capacity?: number): Promise<string | null>;
   /** Changes the visitor's own comment; resolves to an error message, or null. */
@@ -319,6 +324,22 @@ export function mountBoard(h: {
   const textInput = document.createElement("textarea");
   textInput.id = "board-post-text";
   textInput.maxLength = POST_CHARS;
+  // Pictures go into the text where the cursor is: dragged or pasted in, or by this button
+  // (on a phone, where there's nothing to drag). Editing a post too.
+  const picRow = document.createElement("div");
+  picRow.className = "board-pic-row";
+  const picBtn = document.createElement("button");
+  picBtn.type = "button";
+  picBtn.className = "board-secondary";
+  picBtn.textContent = "🖼 Add picture";
+  const picInput = document.createElement("input");
+  picInput.type = "file";
+  picInput.accept = "image/png,image/jpeg,image/gif,image/webp";
+  picInput.multiple = true;
+  picInput.hidden = true;
+  const picHint = hint("or drag or paste one into the text");
+  picHint.classList.add("board-pic-hint");
+  picRow.append(picBtn, picInput, picHint);
   const filesLabel = document.createElement("label");
   filesLabel.htmlFor = "board-post-files";
   filesLabel.append("Files (optional)", hint("Up to 5, 200 MB each: images, PDF, txt, md, docx, pptx, xlsx, zip"));
@@ -361,9 +382,11 @@ export function mountBoard(h: {
   submitBtn.className = "board-primary";
   submitBtn.textContent = "Post";
   writeRow.append(writeCount, cancelBtn, submitBtn);
-  writeView.append(titleLabel, titleInput, textLabel, textInput, filesLabel, prettyFile(filesInput), uploadStatus, privateLabel, groupSize, writeRow);
+  writeView.append(titleLabel, titleInput, textLabel, textInput, picRow, filesLabel, prettyFile(filesInput), uploadStatus, privateLabel, groupSize, writeRow);
 
   let isOpen = false;
+  /** Pictures still going up into the text (the post waits for them). */
+  let picBusy = 0;
   let config: BoardConfig = { title: "", tabs: [] };
   let canStaff = false;
   let tab: BoardTab = "";
@@ -421,7 +444,7 @@ export function mountBoard(h: {
     const overP = pw > POST_WORDS;
     writeCount.textContent = `${pw} / ${POST_WORDS} words`;
     writeCount.classList.toggle("is-over", overP);
-    submitBtn.disabled = busy || overP || titleInput.value.trim() === "" || textInput.value.trim() === "";
+    submitBtn.disabled = busy || picBusy > 0 || overP || titleInput.value.trim() === "" || textInput.value.trim() === "";
 
     const ew = wordCount(editBox.value);
     const overE = ew > COMMENT_WORDS;
@@ -683,14 +706,37 @@ export function mountBoard(h: {
     }
   }
 
+  /** A picture line in a post's text: the picture, a link to it full size. */
+  function postPicture(alt: string, id: string): Node {
+    const a = document.createElement("a");
+    a.className = "board-image";
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.title = `${alt} (opens full size)`;
+    const img = document.createElement("img");
+    img.alt = alt;
+    img.loading = "lazy";
+    a.append(img);
+    void h.imageLink(id).then((url) => {
+      if (url) {
+        img.src = url;
+        a.href = url;
+      } else a.replaceWith(document.createTextNode(`🖼 ${alt} (couldn't load)`));
+    });
+    return a;
+  }
+
   function renderPostHead(): void {
     if (!current) return;
     postTitle.textContent = (current.pinned ? "📌 " : "") + current.title;
     postMeta.textContent = (current.createdAt ? `${current.author} · ${canberraTime(current.createdAt)}` : current.author) + (current.editedAt ? " · edited" : "") + (current.private ? " · 🔒 Private" : "") + (current.hidden ? " · Hidden, awaiting review" : "") + (current.capacity ? ` · ${groupLine(current)}` : "");
     // Posts are Markdown (safe DOM only, markdown.ts); comments stay plain text.
-    postText.replaceChildren(renderMarkdown(current.text));
+    postText.replaceChildren(renderMarkdown(current.text, { picture: postPicture }));
+    // A picture already shown in the text isn't listed again under it.
+    const inText = new Set([...current.text.matchAll(/\(board-file:([A-Za-z0-9-]+)\)/g)].map((m) => m[1]));
+    const listed = (current.files ?? []).filter((f) => !inText.has(f.id));
     postFiles.replaceChildren(
-      ...(current.files ?? []).map((f) => {
+      ...listed.map((f) => {
         const li = document.createElement("li");
         // A picture shows in the post (click for full size); anything else is a download button.
         if (isImage(f.name)) {
@@ -721,7 +767,7 @@ export function mountBoard(h: {
         return li;
       }),
     );
-    postFiles.hidden = !current.files?.length;
+    postFiles.hidden = !listed.length;
     // A pinned notice has no comments to read or add, so its comment box is hidden.
     compose.hidden = !!current.pinned;
     commentList.hidden = !!current.pinned;
@@ -963,6 +1009,68 @@ export function mountBoard(h: {
     else void goBack();
   });
   backBtn.addEventListener("click", () => void goBack());
+  // Pictures into the text: each goes up now, then in as a line of its own where the cursor was.
+  async function addPictures(files: File[]): Promise<void> {
+    const pics = files.filter((f) => isImage(f.name));
+    if (!pics.length) return setError("Only pictures (png, jpg, gif, webp) go into the text; other files go under Files.");
+    for (const f of pics) {
+      if (f.size > MAX_FILE_BYTES) {
+        setError("Files can be up to 200 MB.");
+        continue;
+      }
+      picBusy++;
+      updateCounters();
+      const at = textInput.selectionStart ?? textInput.value.length;
+      uploadStatus.hidden = false;
+      uploadStatus.textContent = `Uploading ${f.name}…`;
+      const r = await h.addPicture(f, (done) => (uploadStatus.textContent = `Uploading ${f.name}… ${Math.round(done * 100)}%`));
+      picBusy--;
+      uploadStatus.textContent = "";
+      uploadStatus.hidden = editingPost;
+      if (typeof r === "string") {
+        setError(r);
+        updateCounters();
+        continue;
+      }
+      const v = textInput.value;
+      const before = v.slice(0, Math.min(at, v.length));
+      const after = v.slice(Math.min(at, v.length));
+      const line = `![${f.name.replace(/[[\]()\n]/g, "")}](board-file:${r.id})`;
+      textInput.value = `${before}${before && !before.endsWith("\n") ? "\n" : ""}${line}\n${after}`.slice(0, POST_CHARS);
+      const caret = Math.min(textInput.value.length, before.length + line.length + 2);
+      textInput.setSelectionRange(caret, caret);
+      updateCounters();
+      savePostDraft();
+    }
+  }
+  picBtn.addEventListener("click", () => picInput.click());
+  picInput.addEventListener("change", () => {
+    const files = [...(picInput.files ?? [])];
+    picInput.value = "";
+    void addPictures(files);
+  });
+  textInput.addEventListener("dragover", (e) => {
+    if ([...(e.dataTransfer?.items ?? [])].some((i) => i.kind === "file")) {
+      e.preventDefault();
+      textInput.classList.add("board-drop");
+    }
+  });
+  textInput.addEventListener("dragleave", () => textInput.classList.remove("board-drop"));
+  textInput.addEventListener("drop", (e) => {
+    textInput.classList.remove("board-drop");
+    const files = [...(e.dataTransfer?.files ?? [])];
+    if (!files.length) return;
+    e.preventDefault();
+    void addPictures(files);
+  });
+  textInput.addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files ?? [])];
+    if (!files.some((f) => isImage(f.name) || /^image\//.test(f.type))) return;
+    e.preventDefault();
+    // A pasted screenshot is often called "image.png"; give it something more telling.
+    void addPictures(files.map((f) => (isImage(f.name) ? f : new File([f], `pasted.${(f.type.split("/")[1] ?? "png").replace("jpeg", "jpg")}`, { type: f.type }))));
+  });
+
   for (const field of [titleInput, textInput]) {
     field.addEventListener("input", () => {
       updateCounters();

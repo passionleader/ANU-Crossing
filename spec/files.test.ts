@@ -71,6 +71,15 @@ describe("who may attach what", () => {
     await api(`/api/board/${post.id}`, "DELETE", { token: a.token });
   });
 
+  it("takes a picture for a post's text before the post is up: a picture only, on a real board, never from a guest", async () => {
+    const v = await visitor();
+    expect([201, 503]).toContain((await ask(v.token, { kind: "board", space: "comp8020" }, "drawing.png", 10)).status);
+    expect((await ask(v.token, { kind: "board", space: "comp8020" }, "slides.pdf", 10)).status).toBe(400);
+    expect((await ask(v.token, { kind: "board", space: "nowhere" }, "drawing.png", 10)).status).toBe(400);
+    const guest = await (await api("/api/guest", "POST", {})).json();
+    expect((await ask(guest.token, { kind: "board", space: "comp8020" }, "drawing.png", 10)).status).toBe(403);
+  });
+
   it("shares files in a meeting room only from inside one", async () => {
     const v = await visitor();
     const s = await connect(v.token);

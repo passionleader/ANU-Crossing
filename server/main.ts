@@ -107,6 +107,7 @@ import {
   type Restrictable,
   addFile,
   findFile,
+  claimBoardPictures,
   filesOn,
   markFileReady,
   purgeFiles,
@@ -1154,6 +1155,8 @@ app.post("/api/board", async (c) => {
     log("refused", v, { action: "post", space, tab: tab.id, reason: "too soon", wait: result.wait }, { ip: ipOf(c), content });
     return c.json({ error: `One post every 30 seconds. Wait ${result.wait}s.`, wait: result.wait }, 429);
   }
+  // The pictures dropped into its text, uploaded while it was written, now belong to it.
+  claimBoardPictures(result.post.id, v.name, result.post.text, POST_FILES);
   log("post", v, { space, tab: tab.id, post: result.post.id, words: wordCount(result.post.text) }, { ip: ipOf(c), content: `${result.post.title}\n\n${result.post.text}` });
   broadcastSpace(spaceOfBoard(space), { t: "action", kind: "board", tab: tab.id });
   return c.json(result.post, 201);
@@ -1226,6 +1229,8 @@ app.patch("/api/board/:id", async (c) => {
     capacity = n;
   }
   const edited = editPost(post.id, (b.title as string).trim(), (b.text as string).trim(), capacity);
+  // Pictures dropped in while editing join it too (any time, not only in its first day).
+  claimBoardPictures(post.id, v.name, edited.text, POST_FILES);
   log("post-edited", v, { space: post.space, tab: post.tab, post: post.id, words: wordCount(edited.text) }, { ip: ipOf(c), content: `${edited.title}\n\n${edited.text}` });
   broadcastSpace(spaceOfBoard(post.space), boardChanged(post));
   return c.json({ ...edited, files: filesOn("post", edited.id).map(({ id, name, size }) => ({ id, name, size })) });
@@ -1650,6 +1655,8 @@ app.post("/api/bugs", async (c) => {
 // and only the people in the room for a room's (until it empties).
 
 const UPLOADS_PER_DAY = 50;
+/** Files on one board post, attached or dropped into its text. */
+const POST_FILES = 5;
 const s3Error = (c: Context, err: unknown): Response => {
   const code = err instanceof S3Failure ? err.code : "S3-NET";
   console.error(JSON.stringify({ at: new Date().toISOString(), event: "s3-error", code, error: String((err as Error)?.name ?? err) }));
@@ -1696,11 +1703,21 @@ app.post("/api/files", async (c) => {
     if (filesOn("bug", report.id, true).length >= 1) return refuse("One screenshot per report.", 400);
     bugId = report.id;
     space = report.space;
+  } else if (kind === "board" && b.post === undefined) {
+    // A picture dropped into a post being written (or edited): it goes up now, with no post yet,
+    // and the post takes it when it is saved (claimBoardPictures). Images only, onto a board
+    // this person may post on.
+    if (!isImage(name)) return refuse("Only a picture goes into a post's text.", 400);
+    const board = boardOf(b.space);
+    if (!board) return refuse("There's no board here.", 400);
+    const barred = stopped(c, v, "posts", { action: "upload", space: b.space });
+    if (barred) return barred;
+    space = b.space as string;
   } else if (kind === "board") {
     const post = findPost(Number(b.post));
     if (!post || post.author !== v.name) return refuse("Only on your own post.", 403);
     if (Date.now() - Date.parse(post.createdAt.replace(" ", "T") + "Z") > 24 * 3600 * 1000) return refuse("Files go on a post within a day of posting.", 403);
-    if (filesOn("post", post.id, true).length >= 5) return refuse("Up to five files on a post.", 400);
+    if (filesOn("post", post.id, true).length >= POST_FILES) return refuse("Up to five files on a post.", 400);
     const barred = stopped(c, v, "posts", { action: "upload", space: post.space, post: post.id });
     if (barred) return barred;
     postId = post.id;
@@ -1742,9 +1759,9 @@ app.post("/api/files/:id/done", async (c) => {
       return s3Error(c, err);
     }
     markFileReady(f.id);
-    const space = f.kind === "room" ? livePlayer(v.name)?.space : f.kind === "board" ? findPost(f.postId!)?.space : null;
+    const space = f.kind === "room" ? livePlayer(v.name)?.space : f.kind === "board" && f.postId !== null ? findPost(f.postId)?.space : null;
     log("file", v, { space, kind: f.kind, post: f.postId, report: f.bugId, size: f.size }, { ip: ipOf(c), content: f.name });
-    const filed = f.kind === "board" ? findPost(f.postId!) : undefined;
+    const filed = f.kind === "board" && f.postId !== null ? findPost(f.postId) : undefined;
     if (filed) broadcastSpace(spaceOfBoard(filed.space), boardChanged(filed));
     if (f.kind === "room" && space && roomSessionOf(v.name, space) === f.room) roomShare(space, v.name, { id: f.id, name: f.name, size: f.size });
   }
@@ -1758,7 +1775,8 @@ app.post("/api/files/:id/link", async (c) => {
   const f = findFile(c.req.param("id"));
   if (!f || !f.ready) return c.json({ error: "That file is gone." }, 404);
   const allowed =
-    (f.kind === "board" && maySeePost(v, findPost(f.postId!) ?? { author: "", private: true })) ||
+    // A board picture no post has taken yet: its uploader alone (the post they're writing).
+    (f.kind === "board" && (f.postId === null ? f.owner === v.name : maySeePost(v, findPost(f.postId) ?? { author: "", private: true }))) ||
     (f.kind === "bug" && mayUseAdminPc(v)) ||
     (f.kind === "room" && (() => {
       const at = livePlayer(v.name)?.space;
