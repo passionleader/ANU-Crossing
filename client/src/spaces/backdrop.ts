@@ -357,6 +357,14 @@ export function buildBackdrop(g: THREE.Group, colliders: Box[]): void {
   rowParts.push(shopfronts(backdrop, -47.5, -40, -40, UNLET_NARROW));
   rowParts.push(residenceDoor(backdrop, -48.6, -40));
   rowBlocks.push(block(backdrop, beige, 7, -47, 6, 14, 5, 2));
+  // The way to the lecture theatre (the user, 11/18) is through the passage: a sign hung under its
+  // lintel and a lit doorway at its far end say so (door in outdoor.ts).
+  const theatreSign = textPlane(["Lecture theatre", "through the passage"], 4.2, 1.0, { bg: "#2c2a33", fg: "#ffffff", font: 0.36 });
+  theatreSign.position.set(7, 2 * FLOOR_H - 0.7, -39.98);
+  backdrop.add(theatreSign);
+  const theatreDoor = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 2.6), new THREE.MeshStandardMaterial({ color: 0x3a3440, emissive: 0xffc878, emissiveIntensity: 0.45 }));
+  theatreDoor.position.set(7, 1.3, -61.9);
+  backdrop.add(theatreDoor);
   road(6, 22, 7, -51);
   // Only from the north (a turned view looking south over them): from the road's side they can't hide
   // you, and the user saw them fade there anyway, standing close (11/4).
