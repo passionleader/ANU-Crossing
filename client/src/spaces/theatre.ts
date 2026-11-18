@@ -18,6 +18,7 @@ const PER_ROW = 10;
 /** Row r's depth (z) and how high its step is. */
 const rowZ = (r: number): number => -2.6 + r * 2.4;
 const rowY = (r: number): number => 0.35 * (r + 1);
+const STAGE_H = 0.3;
 
 export function buildTheatre(): SpaceDef {
   const g = new THREE.Group();
@@ -40,7 +41,9 @@ export function buildTheatre(): SpaceDef {
   idle.position.set(SCREEN.x, SCREEN.y, SCREEN.z + 0.05);
   idle.name = "theatre-idle";
   g.add(idle);
-  block(g, colliders, [halfX * 2, 0.3, 3.4], [0, -halfZ + 1.7], texMat("ai/wood_floor.jpg", 6, 1, 0x9a7656));
+  // The stage: a low step, so a lecturer walks straight up onto it.
+  block(g, null, [halfX * 2, STAGE_H, 3.4], [0, -halfZ + 1.7], texMat("ai/wood_floor.jpg", 6, 1, 0x9a7656));
+  colliders.push({ minX: -halfX, maxX: halfX, minZ: -halfZ, maxZ: -halfZ + 3.4, top: STAGE_H, standOn: true, step: true });
   // The lectern, front left, with a lamp on it.
   block(g, colliders, [1.1, 1.15, 0.7], [LECTERN.x, LECTERN.z - 0.5, 0], texMat("ai/wood_tabletop.jpg", 1, 1, 0x7a5638));
   place(g, "laptop.glb", 0.25, LECTERN.x, LECTERN.z - 0.5, Math.PI, true, 1.15);
@@ -48,7 +51,9 @@ export function buildTheatre(): SpaceDef {
   sign.position.set(LECTERN.x, 0.8, LECTERN.z - 0.14);
   g.add(sign);
 
-  // Five tiers, each a step higher, ten seats a row with an aisle down the middle.
+  // Five tiers, each a step higher, ten seats a row with an aisle down the middle. Each is a
+  // step you walk up (STEP_UP); the top one runs on to the back wall as a landing, where the door
+  // comes in, so you arrive at the top and walk down to a seat or the stage.
   const seats: NonNullable<SpaceDef["seats"]> = [];
   const step = mat(0x4a4450);
   const nose = mat(0x8a7a5a);
@@ -57,13 +62,14 @@ export function buildTheatre(): SpaceDef {
     const z = rowZ(r);
     const y = rowY(r);
     // The step runs the whole width under the row; you walk up the aisle onto it.
-    const tier = new THREE.Mesh(new THREE.BoxGeometry(halfX * 2, y, 2.4), step);
-    tier.position.set(0, y / 2, z + 0.2);
+    const rear = r === ROWS - 1 ? halfZ : z + 1.4;
+    const tier = new THREE.Mesh(new THREE.BoxGeometry(halfX * 2, y, rear - (z - 1)), step);
+    tier.position.set(0, y / 2, (z - 1 + rear) / 2);
     g.add(tier);
     const edge = new THREE.Mesh(new THREE.BoxGeometry(halfX * 2, 0.04, 0.08), nose);
     edge.position.set(0, y + 0.01, z - 1.0);
     g.add(edge);
-    colliders.push({ minX: -halfX, maxX: halfX, minZ: z - 1, maxZ: z + 1.4, top: y, standOn: true });
+    colliders.push({ minX: -halfX, maxX: halfX, minZ: z - 1, maxZ: rear, top: y, standOn: true, step: true });
     for (let i = 0; i < PER_ROW; i++) {
       // Five each side of a 2 m aisle.
       const x = (i < 5 ? -1 : 1) * (1.6 + (i % 5) * 1.6);
@@ -91,7 +97,7 @@ export function buildTheatre(): SpaceDef {
   solid(colliders, 0.6, 0.6, halfX - 0.6, -halfZ + 0.6);
 
   // The way out: the back wall's west corner, behind the top row.
-  doorway(g, -halfX - 0.05, halfZ - 1.6, Math.PI / 2, "Out to the north road");
+  doorway(g, -halfX - 0.05, halfZ - 1.6, Math.PI / 2, "Out to the north road", rowY(ROWS - 1));
 
   return {
     id: "theatre",

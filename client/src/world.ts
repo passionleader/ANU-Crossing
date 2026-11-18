@@ -21,7 +21,12 @@ export interface Box {
   top?: number;
   /** You can stand on its top (a flower bed's kerb), not only jump over it. */
   standOn?: boolean;
+  /** Low enough to walk up onto without jumping (a stair, a stage): see STEP_UP. */
+  step?: boolean;
 }
+
+/** How high a step you walk up without jumping (the theatre's tiers are 0.35 m, its stage 0.3 m). */
+export const STEP_UP = 0.4;
 
 /** The ground under a point: the top of anything you can stand on there, else the floor. */
 export function groundAt(x: number, z: number, colliders: Box[]): number {
@@ -133,6 +138,8 @@ export function pushOut(pos: THREE.Vector3, radius: number, colliders: Box[]): v
   for (let pass = 0; pass < 2; pass++) {
     for (const b of colliders) {
       if (b.top !== undefined && pos.y >= b.top - 0.01) continue;
+      // A step: walking into it takes you up onto it (groundAt lifts you next frame), not back.
+      if (b.step && b.top !== undefined && b.top - pos.y <= STEP_UP) continue;
       const cx = THREE.MathUtils.clamp(pos.x, b.minX, b.maxX);
       const cz = THREE.MathUtils.clamp(pos.z, b.minZ, b.maxZ);
       const dx = pos.x - cx;
@@ -560,7 +567,7 @@ export function chalkboard(lines: string[], w: number, h: number, font = 0.26): 
  * A door in a wall: a dark frame with a lit panel and a floating label. `facing`
  * is the direction (radians around y) the door's front looks toward.
  */
-export function doorway(g: THREE.Group, x: number, z: number, facing: number, label: string): void {
+export function doorway(g: THREE.Group, x: number, z: number, facing: number, label: string, y = 0): void {
   const d = new THREE.Group();
   const frame = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.6, 0.12), mat(0x2b2b2b));
   frame.position.y = 1.3;
@@ -576,7 +583,7 @@ export function doorway(g: THREE.Group, x: number, z: number, facing: number, la
     tag.position.set(0, 3.1, 0.2);
     d.add(tag);
   }
-  d.position.set(x, 0, z);
+  d.position.set(x, y, z);
   d.rotation.y = facing;
   g.add(d);
 }

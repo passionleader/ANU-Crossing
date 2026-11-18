@@ -2884,7 +2884,10 @@ function standUp(): void {
   // Step out the way the seat faces. Left on the seat, you were inside the
   // sofa's footprint, and pushing out of it could put you behind the sofa.
   const { seat } = mySeat;
-  player.position.set(seat.x + Math.sin(seat.rot) * STAND_STEP, 0, seat.z + Math.cos(seat.rot) * STAND_STEP);
+  const x = seat.x + Math.sin(seat.rot) * STAND_STEP;
+  const z = seat.z + Math.cos(seat.rot) * STAND_STEP;
+  // On the ground there (a theatre's tier, not the floor under it, which would push you off the step).
+  player.position.set(x, space ? groundAt(x, z, space.colliders) : 0, z);
   mySeat = null;
   net?.sit(null);
 }
