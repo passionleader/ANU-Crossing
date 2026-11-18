@@ -67,13 +67,17 @@ export const FINISHES: [string, number, number][] = [
   ["Blush", 0xe2b4ae, 0x6b5a7a],
 ];
 /** Wall paints and floors, by index (same counts as server/myroom.ts WALLS and FLOORS). */
+// Bright pastels near the primaries (the user, 11/18: the first ones were too grey to tell apart);
+// buildShell paints the 3D walls so that on screen they look like these swatches.
+/** Takes back the plaster texture's warm cast (its mean colour is 243/229/210): red and green down to blue's level. */
+const PLASTER_CAST = new THREE.Color().setRGB(210 / 243, 210 / 229, 1, THREE.SRGBColorSpace);
 export const WALLS: [string, number][] = [
-  ["Cream", 0xf2eadc],
-  ["Mint", 0xdcebdf],
-  ["Sky", 0xdbe6f0],
-  ["Peach", 0xf3dcc8],
-  ["Lavender", 0xe4dcef],
-  ["Charcoal", 0x8a8a8f],
+  ["Butter", 0xffe680],
+  ["Mint", 0x9ff0b8],
+  ["Sky", 0x9fd2ff],
+  ["Peach", 0xffb48a],
+  ["Lilac", 0xc9a8ff],
+  ["Rose", 0xff9fc0],
 ];
 export const FLOORS: [string, string, number][] = [
   ["Light wood", "ai/wood_floor.jpg", 0xffffff],
@@ -115,9 +119,17 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
   function buildShell(layout: Layout): void {
     shell.clear();
     fixed.length = 0;
-    const [, wallTint] = WALLS[layout.wall] ?? WALLS[0]!;
+    const [, wallSwatch] = WALLS[layout.wall] ?? WALLS[0]!;
+    // The plaster texture is warm ivory and multiplies the paint, which turned a blue or a lilac grey.
+    // So the paint takes back that cast: on screen the wall then looks like the swatch you picked.
+    const wallTint = new THREE.Color(wallSwatch).multiply(PLASTER_CAST).getHex();
     const [, floorFile, floorTint] = FLOORS[layout.floor] ?? FLOORS[0]!;
     roomShell(shell, fixed, HOME_HALF.halfX, HOME_HALF.halfZ, texMat(floorFile, 5, 4, floorTint), { tint: wallTint, trim: 0x6b4e36 });
+    // ACES tone mapping halved the paints' saturation (measured on screen): the walls skip it.
+    shell.traverse((o) => {
+      const m = (o as THREE.Mesh).material;
+      if (m instanceof THREE.MeshStandardMaterial && m.color.getHex() === wallTint) m.toneMapped = false;
+    });
     // A window on the back wall with daylight in it, and the owner's name over the door.
     const frame = mat(0x5a4030);
     const glass = new THREE.MeshStandardMaterial({ color: 0xbfd8ec, emissive: 0xcfe4f5, emissiveIntensity: 0.55, roughness: 0.2 });
