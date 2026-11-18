@@ -734,16 +734,25 @@ const hiddenFor = (v: Visitor | null | undefined) => (author: string): boolean =
 /** maySeePost, and not hidden for someone who may not see it. */
 const maySeePost = (v: Visitor | null | undefined, post: { id?: number; author: string; private?: boolean }): boolean =>
   maySeeUnhiddenPost(v, post) && (post.id === undefined || !isHidden("post", post.id) || mayViewHidden(v, post.author));
+/** Someone's My Room is theirs: its notes only for them and whoever is in it now (a visitor they let in). */
+const mayReadHome = (v: Visitor | null | undefined, space: string): boolean => {
+  const owner = homeOwner(space);
+  return !owner || (!!v && (v.name.toLowerCase() === owner || livePlayer(v.name)?.space === space));
+};
+
 /** A note a viewer may open (comment on, read the comments of): it's there and not hidden from them. */
-const noteVisibleTo = (v: Visitor | null | undefined, note: { id: number; author: string }): boolean => !isHidden("note", note.id) || mayViewHidden(v, note.author);
+const noteVisibleTo = (v: Visitor | null | undefined, note: { id: number; author: string; space?: string }): boolean =>
+  (!note.space || mayReadHome(v, note.space)) && (!isHidden("note", note.id) || mayViewHidden(v, note.author));
 
 // --- sticky notes ----------------------------------------------------------
 
 app.get("/api/notes", (c) => {
   const space = c.req.query("space");
   if (!isSpace(space)) return c.json({ error: "No such place." }, 404);
+  const viewer = who({ token: c.req.query("token") });
+  if (!mayReadHome(viewer, space)) return c.json([]);
   // The token (if any) only decides whether a note hidden after reports is yours to see.
-  return c.json(notesIn(space, hiddenFor(who({ token: c.req.query("token") }))));
+  return c.json(notesIn(space, hiddenFor(viewer)));
 });
 
 app.post("/api/notes", async (c) => {
@@ -758,6 +767,8 @@ app.post("/api/notes", async (c) => {
   if (typeof b.x !== "number" || typeof b.z !== "number" || !Number.isFinite(b.x) || !Number.isFinite(b.z)) {
     return c.json({ error: "A note needs a place." }, 400);
   }
+  // Someone's My Room: only from inside it.
+  if (homeOwner(b.space) && livePlayer(v.name)?.space !== b.space) return c.json({ error: "Only from inside the room." }, 403);
   const bad = textError(b.text);
   if (bad) {
     log("refused", v, { action: "note", space: b.space, reason: bad }, { ip: ipOf(c), content: typeof b.text === "string" ? b.text.slice(0, 3000) : null });
@@ -799,7 +810,8 @@ app.delete("/api/notes/:id", async (c) => {
   if (!v) return c.json({ error: "Join first." }, 401);
   const note = findNote(Number(c.req.param("id")));
   if (!note) return c.json({ error: "That note is gone." }, 404);
-  if (!mayRemove(v, note.author)) {
+  // In My Room its owner may take down a visitor's note too: it's their wall.
+  if (!mayRemove(v, note.author) && homeOwner(note.space) !== v.name.toLowerCase()) {
     log("refused", v, { action: "remove note", space: note.space, note: note.id, owner: note.author, reason: "not the author" }, { ip: ipOf(c), content: note.text });
     return c.json({ error: "Only its author can remove this note." }, 403);
   }
@@ -854,9 +866,10 @@ app.post("/api/comments/:id/heart", async (c) => {
   if (guest) return guest;
   const comment = findComment(Number(c.req.param("id")));
   if (!comment || (isHidden("comment", comment.id) && !mayViewHidden(v, comment.author))) return c.json({ error: "That comment is gone." }, 404);
+  const note = findNote(comment.noteId);
+  if (note && !mayReadHome(v, note.space)) return c.json({ error: "That comment is gone." }, 404);
   if (comment.author.toLowerCase() === v.name.toLowerCase()) return c.json({ error: "You can't heart your own comment." }, 400);
   const hearted = toggleHeart("note", comment.id, v.name);
-  const note = findNote(comment.noteId);
   if (note) broadcastSpace(note.space, { t: "action", kind: "hearts", noteId: note.id });
   return c.json({ hearted, hearts: findComment(comment.id)!.heartedBy.length });
 });

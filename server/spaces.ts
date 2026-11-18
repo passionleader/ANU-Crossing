@@ -269,6 +269,8 @@ const HUB_KEEP_CLEAR: { x: number; z: number }[] = [
   ...[11, 12.4, 13.8, 5.6].map((x) => ({ x, z: -11.1 })),
   { x: 14, z: 4.6 }, // where you press E at the games table (GAME_TABLES)
 ];
+// My Room's way out (client/src/spaces/myroom.ts HOME_INNER_DOOR). Its furniture moves, so only the door is kept clear.
+const HOME_KEEP_CLEAR: { x: number; z: number }[] = [{ x: -5.1, z: 3.4 }];
 const CLASSROOM_KEEP_CLEAR: { x: number; z: number }[] = [
   { x: 8.9, z: 6 }, // the way out
   { x: 0, z: -6.7 }, // the whiteboard
@@ -285,6 +287,8 @@ export function noteSpotError(space: SpaceId, x: number, z: number, staff = fals
   }
   if (NO_NOTE_SPACES.has(space))
     return space === "anusa" ? "No sticky notes in the ANUSA Student Lounge." : space === "poop" ? "Not in here." : space === "careers" ? "No sticky notes in the Career Hub." : "Only staff stick notes in the Student Hub.";
+  // My Room takes notes (the user, 11/18): its owner's pinboard, and their visitors'.
+  if (homeOwner(space)) return HOME_KEEP_CLEAR.some((p) => Math.hypot(p.x - x, p.z - z) < NOTE_CLEARANCE) ? "Too close to the door. Step away a little." : null;
   if (roomOf(space)) return "No sticky notes in meeting rooms.";
   const outside = space === "outdoor";
   if (outside && BUILDINGS.some((b) => x >= b.minX && x <= b.maxX && z >= b.minZ && z <= b.maxZ)) return "Not inside a building.";

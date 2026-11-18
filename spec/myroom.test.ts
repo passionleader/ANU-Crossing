@@ -4,7 +4,8 @@ import { api, closeAll, connect, guest, visitor, type Msg } from "./helpers.ts";
 // My Room (server/myroom.ts, the user 11/18): every account has a room of its own. Its owner always
 // gets in; anyone else only when someone inside has invited them. Its notebook and calendar are the
 // owner's alone; its furniture is seen by whoever is in the room, and only the owner moves it. A
-// member's is kept in SQLite; a guest's only in memory, gone when they leave.
+// member's is kept in SQLite; a guest's only in memory, gone when they leave. Sticky notes go up in it
+// from inside only, and only its owner and whoever is in it read them; the owner may take any down.
 
 afterEach(closeAll);
 
@@ -86,6 +87,33 @@ describe("My Room", () => {
     expect(layout.owner).toBe(owner.name);
     expect(JSON.stringify(layout)).not.toContain("notebook");
   }, 12_000);
+
+  it("takes sticky notes from inside, shows them only to the people in it, and lets its owner take any down", async () => {
+    const owner = await visitor();
+    const friend = await visitor();
+    const stranger = await visitor();
+    const room = home(owner.name);
+    const so = await walkIn(owner.token, room);
+    await so.next(opened(room));
+    const stick = (token: string, text: string) => api("/api/notes", "POST", { token, space: room, x: 1, z: -1, text });
+    expect((await stick(owner.token, "Buy milk")).status).toBe(201);
+    // Not inside: refused, and the notes aren't read out to them.
+    expect((await stick(stranger.token, "hello")).status).toBe(403);
+    expect(await (await api(`/api/notes?space=${room}&token=${stranger.token}`)).json()).toEqual([]);
+    expect(await (await api(`/api/notes?space=${room}`)).json()).toEqual([]);
+    // A visitor let in sticks one; the owner takes it down.
+    so.send({ t: "invite", name: friend.name });
+    const sf = await walkIn(friend.token, room);
+    await sf.next((m) => m.t === "action" && (m.kind === "room-open" || m.kind === "room-invited"));
+    sf.send({ t: "enter", space: room, x: 0, z: 0 });
+    await sf.next(opened(room));
+    const res = await stick(friend.token, "Nice room!");
+    expect(res.status).toBe(201);
+    const note = ((await res.json()) as { note: { id: number } }).note.id;
+    const seen = (await (await api(`/api/notes?space=${room}&token=${friend.token}`)).json()) as { text: string }[];
+    expect(seen.map((n) => n.text).sort()).toEqual(["Buy milk", "Nice room!"]);
+    expect((await api(`/api/notes/${note}`, "DELETE", { token: owner.token })).status).toBe(200);
+  }, 15_000);
 
   it("gives a guest a room that is forgotten once they leave it", async () => {
     const g = await guest();

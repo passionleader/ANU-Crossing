@@ -248,7 +248,7 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
     // Its own two tracks (the user, 11/18), so your room sounds like home, not the Hub.
     bgm: ["Golden_Hour_on_the_Quad.mp3", "Sunlight_in_the_Grove.mp3"],
     floor: "wood",
-    noNotes: true,
+    // Sticky notes: your own pinboard (the user, 11/18); only you and the people you let in see them.
     seats,
     spots,
     setLayout(layout) {

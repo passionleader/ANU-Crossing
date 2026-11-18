@@ -2089,7 +2089,7 @@ async function openNote(id: number): Promise<void> {
 
 /** Why a note can't go where the player stands, or null (server/spaces.ts noteSpotError). */
 function noteSpotError(): string | null {
-  if (space && meetingRoom(space.id)) return "No sticky notes in meeting rooms.";
+  if (space && meetingRoom(space.id) && !homeOwnerOf(space.id)) return "No sticky notes in meeting rooms.";
   // Staff and the admin may stick notes in the Hub (plan 99); everyone else not.
   if (!space || (space.noNotes && !(space.id === "hub" && isStaff(session)))) return space?.id === "hub" ? "Only staff stick notes in the Student Hub." : "No sticky notes here.";
   const { x, z } = player.position;
