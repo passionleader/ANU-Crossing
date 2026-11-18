@@ -2025,7 +2025,9 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
   if (space.outdoor) {
     applySky();
     scene.fog = new THREE.Fog(0xc9dcea, SCENERY_FOG[0], SCENERY_FOG[1]);
+    document.documentElement.style.removeProperty("--page-bg");
   } else {
+    document.documentElement.style.setProperty("--page-bg", `#${new THREE.Color(space.background).getHexString()}`);
     scene.remove(sky, skyDome);
     scene.background = new THREE.Color(space.background);
     scene.environment = indoorEnv;

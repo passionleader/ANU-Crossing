@@ -16,7 +16,9 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #bfdcf2;
+  /* Indoors, main.ts sets this to the room's colour, so a gap a browser leaves in the 3D
+     canvas (one showed sky blue under the theatre's video player) is the room, not the sky. */
+  background: var(--page-bg, #bfdcf2);
   color: var(--ink);
   font-family: system-ui, sans-serif;
   touch-action: none;
