@@ -4,6 +4,8 @@
 // passes the requests (they resolve to a Session, or an error message to show).
 
 import "./signin.css";
+import "./terms.css";
+import { ensureTerms } from "./terms.ts";
 import type { AnuWho, Session } from "./api.ts";
 
 type View = "signin" | "signup" | "reset";
@@ -155,8 +157,9 @@ export function mountSignIn(opts: {
       if (!pw.input.value) return void (error.textContent = "Enter your password, or continue as a guest.");
       void run(form, error, () => opts.signIn(n, pw.input.value), (s) => s && enter(s));
     });
-    guest.addEventListener("click", () => void run(form, error, () => opts.guest(), (s) => s && enter(s)));
-    signup.addEventListener("click", () => go("signup"));
+    // Terms of use first (terms.ts): a guest agrees too, once in this browser.
+    guest.addEventListener("click", () => void ensureTerms().then((ok) => ok && void run(form, error, () => opts.guest(), (s) => s && enter(s))));
+    signup.addEventListener("click", () => void ensureTerms().then((ok) => ok && go("signup")));
     forgot.addEventListener("click", () => go("reset"));
     return {
       form,
@@ -420,6 +423,12 @@ export function mountSignIn(opts: {
       const err = resending ? s2.error : s1.error;
       const w = who();
       if (typeof w === "string") return void (err.textContent = w);
+      // Reached by "Sign up" elsewhere too (showSignup): the terms are asked before any code goes out.
+      if (!resending) return void ensureTerms().then((ok) => (ok ? postCode(w, err) : void (err.textContent = "Please agree to the terms of use to sign up.")));
+      postCode(w, err);
+    };
+    const postCode = (w: AnuWho, err: HTMLElement): void => {
+      const resending = err === s2.error;
       void run(
         form,
         err,
