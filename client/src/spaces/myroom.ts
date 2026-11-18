@@ -229,8 +229,10 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
         const s = at(0, 0.35);
         // Facing the desk: the chair looks along -z in the desk's own frame.
         seats!.push({ ...s, rot: turn + Math.PI, y: 0.45 });
-        spots.push({ ...at(0, 0.95), id: "home:desk", label: "Sit at the desk · notebook and calendar" });
+        spots.push({ ...at(0, 0.95), id: "home:desk", label: "Sit at the desk · notes" });
       }
+      // The bookcase holds your saved notes (the mailbox's Saved tab), wherever it stands.
+      if (p.id === "bookcase") spots.push({ ...at(0, 0.85), id: "home:shelf", label: "The bookcase · your saved notes" });
       if (p.id === "sofa") for (const lx of [-0.45, 0.45]) seats!.push({ ...at(lx, 0.1), rot: turn, y: 0.42 });
       if (p.id === "bed") seats!.push({ ...at(0, 0.9), rot: turn + Math.PI / 2, y: 0.55 });
     }

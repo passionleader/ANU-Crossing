@@ -354,3 +354,25 @@ describe("pictures dropped into a board post's text", () => {
     expect(db.findFile("p1")?.postId).toBe(r.post.id);
   });
 });
+
+describe("pictures in your own notes", () => {
+  it("stay while saved notes show them, and go a day on if none do", () => {
+    db.createVisitor("noter", "t-noter");
+    const add = (id: string) => {
+      db.addFile({ id, kind: "note", owner: "noter", name: `${id}.png`, size: 10, key: `room-files/${id}.png`, postId: null, bugId: null, room: null });
+      db.markFileReady(id);
+      raw.prepare("UPDATE files SET created_at = datetime('now', '-25 hours') WHERE id = ?").run(id);
+    };
+    add("kept");
+    add("dropped");
+    const saved = db.saveChat("noter", "theatre", [{ name: "Notes", text: "![a](note-file:kept)" }], "notes");
+    db.keepNoteFiles(["kept", "dropped-not-named"], saved, "noter");
+    expect(db.keepsFile("noter", "kept")).toBe(true);
+    const gone = db.releaseKeptFiles();
+    expect(gone).toContain("room-files/dropped.png");
+    expect(gone).not.toContain("room-files/kept.png");
+    // Deleting the saved notes lets the picture go too.
+    db.deleteSavedChat("noter", saved);
+    expect(db.releaseKeptFiles()).toContain("room-files/kept.png");
+  });
+});

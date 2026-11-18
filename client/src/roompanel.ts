@@ -84,8 +84,8 @@ export function mountRoomPanel(opts: {
   onSaved(): void;
   /** Says something over the window, for when a focus or break phase ends (the timer is only on this screen). */
   onNotice(msg: string): void;
-  /** My Room, its owner only: the notebook, the calendar and the furniture (myroomui.ts). */
-  onHome(what: "notebook" | "calendar" | "furniture"): void;
+  /** My Room, its owner only: the notes, saved notes, the calendar and the furniture (myroomui.ts). */
+  onHome(what: "notebook" | "calendar" | "furniture" | "saved"): void;
   /** Whether the room shown is the viewer's own (My Room's own items show only then). */
   isMine(): boolean;
   /** A guest's own room is cleared when they leave it (server/myroom.ts guestRoom). */
@@ -238,7 +238,8 @@ export function mountRoomPanel(opts: {
   }
   // My Room's own things, first on its owner's menu (the user, 11/18).
   const homeItems = [
-    addItem("📓", "My notebook", "Your own Markdown notes (only you see them)", () => (show("closed"), opts.onHome("notebook"))),
+    addItem("📓", "My notes", "A page of Markdown notes; Save keeps a copy (only you see them)", () => (show("closed"), opts.onHome("notebook"))),
+    addItem("📚", "Saved notes", "The notes and chats you saved (also on the bookcase)", () => (show("closed"), opts.onHome("saved"))),
     addItem("📅", "My calendar", "Your dates, and ANU's academic dates you copy in", () => (show("closed"), opts.onHome("calendar"))),
     addItem("🪑", "Arrange furniture", "Move, turn and recolour the furniture, the walls and the floor", () => (show("closed"), opts.onHome("furniture"))),
   ];
@@ -266,9 +267,6 @@ export function mountRoomPanel(opts: {
   addItem("🖍️", "Whiteboard", "Draw together in a new tab (Excalidraw; everyone here gets the same board)", () => opts.onWhiteboard());
   const shareItem = addItem("🖥️", "Share screen", "Show your screen to everyone here (they watch in the Shared screen view)", () => opts.onShareScreen());
   addItem("📺", "Show a video to the room", "Paste a YouTube or Vimeo link; everyone here watches together", () => show("screen"));
-  // Your notebook comes along to any other room (the user, 11/18): notes from a team meeting land in
-  // My Room. After the user's set order (11/9), not before it. A guest's lives only in their own room.
-  const notebookItem = addItem("📓", "My notebook", "Your My Room notes, open here too (only you see them)", () => (show("closed"), opts.onHome("notebook")));
   addItem(
     "💾",
     "Save chat",
@@ -551,7 +549,6 @@ export function mountRoomPanel(opts: {
     const counselling = info.kind === "counselling" || info.kind === "home";
     invite.hidden = !counselling;
     for (const b of homeItems) b.hidden = !(info.kind === "home" && opts.isMine());
-    notebookItem.hidden = info.kind === "home" || opts.isGuest();
     const nowHome = info.kind === "home" && opts.isMine();
     if (nowHome !== homeMenu) toolsOpen = false;
     homeMenu = nowHome;
@@ -717,11 +714,11 @@ export function mountRoomPanel(opts: {
 
   function askLeave(): void {
     if (memberCount > 1) return opts.onLeave();
-    // Your own room keeps its furniture, notebook and calendar; its chat goes, which is no loss
+    // Your own room keeps its furniture and calendar; its chat goes, which is no loss
     // alone. A guest's room is cleared, so they're warned of that instead.
     if (roomKind === "home" && opts.isMine()) {
       if (!opts.isGuest()) return opts.onLeave();
-      lastOutText.textContent = "A guest's room is cleared when you leave: the notebook, the calendar and the furniture go back to how they started. Sign up to keep them.";
+      lastOutText.textContent = "A guest's room is cleared when you leave: the calendar and the furniture go back to how they started. Sign up to keep them.";
       leaveYes.textContent = "Leave";
     } else {
       lastOutText.textContent = LAST_OUT_TEXT;

@@ -1,13 +1,15 @@
 import "./calendar.css";
 import "./myroomui.css";
 import academic from "./academic-calendar.json";
-import { renderMarkdown } from "./markdown.ts";
+import { mountNotePad } from "./notepad.ts";
 import { FINISHES, FLOORS, FURNITURE, PIECE_INFO, WALLS, footprint, type FurnitureId, type Layout, type Piece } from "./spaces/myroom.ts";
 
-// My Room's windows (the user, 11/18), its owner's alone: a Markdown notebook, a personal calendar
-// (with ANU's academic dates to copy in), and a furniture editor. Everything is saved on the server
-// (server/myroom.ts: a member's in SQLite, a guest's in memory until they leave the room); the
-// notebook a moment after you stop typing, the rest at once.
+// My Room's windows (the user, 11/18), its owner's alone: a page of Markdown notes, a personal
+// calendar (with ANU's academic dates to copy in), and a furniture editor. The calendar and the
+// furniture are saved on the server (server/myroom.ts: a member's in SQLite, a guest's in memory
+// until they leave the room) at once. The notes are a fresh page each time (notepad.ts, as in the
+// lecture theatre): Save keeps a copy in the mailbox's Saved tab, which the bookcase also opens,
+// and closing with unsaved words asks first.
 
 export interface CalEntry {
   id: string;
@@ -67,9 +69,14 @@ export function mountMyRoomUi(deps: {
   /** The furniture changed in the editor: shown at once, before (and whether or not) it's saved. */
   preview(layout: Layout): void;
   say(msg: string): void;
+  /** Your own notes' saving and pictures (notepad.ts). */
+  notes: Parameters<typeof mountNotePad>[0];
 }): {
   open(what: "notebook" | "calendar" | "furniture"): Promise<void>;
   isOpen(): boolean;
+  isTyping(): boolean;
+  /** Closes, asking first about unsaved notes; resolves true once closed. */
+  tryClose(): Promise<boolean>;
   close(): void;
 } {
   let data: MyRoomData | null = null;
@@ -77,44 +84,11 @@ export function mountMyRoomUi(deps: {
     el.textContent = text;
   };
 
-  // --- the notebook -------------------------------------------------------------------
-  const nb = dialog("myroom-notebook", "📓 My notebook");
+  // --- the notes: a fresh page each time (notepad.ts) -------------------------------------
+  const nb = dialog("myroom-notebook", "📓 My notes");
   nb.card.classList.add("myroom-wide");
-  const nbBody = document.createElement("div");
-  nbBody.className = "myroom-nb";
-  const nbText = document.createElement("textarea");
-  nbText.maxLength = 5000;
-  nbText.placeholder = "# This week\n- [ ] Lab 3\n- Read chapter 4\n\nMarkdown: # headings, - lists, **bold**, [links](https://…)";
-  nbText.setAttribute("aria-label", "Notebook (Markdown)");
-  const nbView = document.createElement("div");
-  nbView.className = "myroom-nb-view md";
-  nbView.setAttribute("aria-label", "Notebook, as it reads");
-  nbBody.append(nbText, nbView);
-  const nbFoot = document.createElement("p");
-  nbFoot.className = "settings-note myroom-status";
-  nbFoot.setAttribute("role", "status");
-  nb.card.append(nbBody, nbFoot);
-  let nbTimer = 0;
-  const nbRender = (): void => {
-    nbView.replaceChildren(renderMarkdown(nbText.value || "*Nothing here yet.*"));
-  };
-  const nbSave = async (): Promise<void> => {
-    window.clearTimeout(nbTimer);
-    if (!data || nbText.value === data.notebook) return;
-    const text = nbText.value;
-    status(nbFoot, "Saving…");
-    const err = await deps.save({ notebook: text });
-    if (err) return status(nbFoot, err);
-    data.notebook = text;
-    status(nbFoot, data.guest ? "Saved for now (a guest's room is cleared when you leave it)." : `Saved · ${text.length}/5000`);
-  };
-  nbText.addEventListener("input", () => {
-    nbRender();
-    status(nbFoot, "…");
-    window.clearTimeout(nbTimer);
-    nbTimer = window.setTimeout(() => void nbSave(), 900);
-  });
-  nbText.addEventListener("blur", () => void nbSave());
+  const pad = mountNotePad(deps.notes);
+  nb.card.append(pad.el);
 
   // --- the calendar -------------------------------------------------------------------
   const cal = dialog("myroom-calendar", "📅 My calendar");
@@ -520,8 +494,13 @@ export function mountMyRoomUi(deps: {
   // --- opening and closing ----------------------------------------------------------------
   const all = [nb, cal, fe];
   let openOne: (typeof all)[number] | null = null;
+  /** Closes whichever window is open; the notes, with unsaved words, ask first (and may stay). */
+  async function tryClose(): Promise<boolean> {
+    if (openOne === nb && !(await pad.confirmClose())) return false;
+    close();
+    return true;
+  }
   function close(): void {
-    if (openOne === nb) void nbSave();
     // Leaving the editor unsaved puts the room back as it was.
     if (openOne === fe && data && draft && JSON.stringify(draft) !== JSON.stringify(data.layout)) {
       deps.preview(data.layout);
@@ -532,33 +511,34 @@ export function mountMyRoomUi(deps: {
     document.body.classList.remove("myroom-open");
   }
   for (const d of all) {
-    d.close.addEventListener("click", close);
+    d.close.addEventListener("click", () => void tryClose());
     d.root.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        close();
+        void tryClose();
       }
     });
     d.root.addEventListener("click", (e) => {
-      if (e.target === d.root) close();
+      if (e.target === d.root) void tryClose();
     });
   }
 
   return {
     async open(what) {
-      close();
-      const got = await deps.load();
-      if (typeof got === "string") return deps.say(got);
-      data = got;
+      if (!(await tryClose())) return;
       if (what === "notebook") {
-        nbText.value = data.notebook;
-        nbRender();
-        status(nbFoot, data.guest ? "A guest's notebook is cleared when you leave your room." : `${data.notebook.length}/5000 · saved as you type`);
+        // The notes need nothing from the server: a fresh page.
+        pad.clear();
         openOne = nb;
         nb.root.hidden = false;
         document.body.classList.add("myroom-open");
-        nbText.focus();
-      } else if (what === "calendar") {
+        pad.focus();
+        return;
+      }
+      const got = await deps.load();
+      if (typeof got === "string") return deps.say(got);
+      data = got;
+      if (what === "calendar") {
         status(calFoot, data.guest ? "A guest's calendar is cleared when you leave your room." : "");
         drawCalendar();
         openOne = cal;
@@ -576,6 +556,12 @@ export function mountMyRoomUi(deps: {
       }
     },
     isOpen: () => openOne !== null,
-    close,
+    isTyping: () => pad.isTyping(),
+    tryClose,
+    close() {
+      // Gone without asking (signed out, sent out): the page goes.
+      pad.clear();
+      close();
+    },
   };
 }

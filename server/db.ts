@@ -807,6 +807,12 @@ db.exec(`
     PRIMARY KEY (file_id, saved_id)
   );
 `);
+/** Marks `owner`'s own note pictures among `ids` as kept by their saved notes `savedId`. */
+export function keepNoteFiles(ids: string[], savedId: number, owner: string): void {
+  const own = db.prepare("SELECT id FROM files WHERE id = ? AND owner = ? AND kind = 'note'");
+  const add = db.prepare("INSERT OR IGNORE INTO kept_files (file_id, saved_id, owner) VALUES (?, ?, ?)");
+  for (const id of ids) if (own.get(id, owner)) add.run(id, savedId, owner);
+}
 /** Marks the room's own files among `ids` as kept by saved copy `savedId` of `owner`. */
 export function keepRoomFiles(room: string, ids: string[], savedId: number, owner: string): void {
   const own = db.prepare("SELECT id FROM files WHERE id = ? AND room = ? AND kind = 'room'");
@@ -818,11 +824,17 @@ export const keepsFile = (owner: string, id: string): boolean =>
   !!db.prepare(`SELECT 1 FROM kept_files k JOIN saved_chats s ON s.id = k.saved_id WHERE k.file_id = ? AND k.owner = ? AND s.${freshChat}`).get(id, owner);
 /**
  * Forgets keepers whose saved copy is gone, and returns the S3 keys of room files nothing keeps any
- * more and whose room has closed (room is NULL), so they can be removed now.
+ * more and whose room has closed (room is NULL), and of note pictures a day old that no saved notes
+ * keep, so they can be removed now.
  */
 export function releaseKeptFiles(): string[] {
   db.prepare("DELETE FROM kept_files WHERE saved_id NOT IN (SELECT id FROM saved_chats)").run();
-  const loose = db.prepare("SELECT id, key FROM files WHERE kind = 'room' AND room IS NULL AND id NOT IN (SELECT file_id FROM kept_files)").all() as { id: string; key: string }[];
+  // A note picture no saved notes keep goes a day after it was added (the notes were closed unsaved).
+  const loose = db
+    .prepare(
+      "SELECT id, key FROM files WHERE id NOT IN (SELECT file_id FROM kept_files) AND ((kind = 'room' AND room IS NULL) OR (kind = 'note' AND created_at <= datetime('now', '-1 day')))",
+    )
+    .all() as { id: string; key: string }[];
   const del = db.prepare("DELETE FROM files WHERE id = ?");
   for (const f of loose) del.run(f.id);
   return loose.map((f) => f.key);
@@ -1433,7 +1445,7 @@ export function saveLook(name: string, look: Look): void {
 
 export interface FileRow {
   id: string;
-  kind: "bug" | "board" | "room";
+  kind: "bug" | "board" | "room" | "note";
   owner: string;
   name: string;
   size: number;

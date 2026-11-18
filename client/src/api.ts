@@ -310,7 +310,10 @@ export const heartPostComment = (token: string, id: number): Promise<{ hearted: 
 
 // A board picture with a `space` and no post goes into the text of a post being written; saving
 // the post takes it (server: claimBoardPictures).
-export type FileTarget = { kind: "bug"; bug: number } | { kind: "board"; post: number } | { kind: "board"; space: string } | { kind: "room" };
+/** Keeps a copy of your own notes (the theatre's, My Room's) in the mailbox's Saved tab. */
+export const saveMyNotes = (token: string, text: string): Promise<{ id: number }> => request("/api/my-notes", "POST", { token, text });
+// A note picture (kind "note") is its uploader's alone; saved notes keep it.
+export type FileTarget = { kind: "bug"; bug: number } | { kind: "board"; post: number } | { kind: "board"; space: string } | { kind: "room" } | { kind: "note" };
 export const askUpload = (token: string, target: FileTarget, name: string, size: number): Promise<{ id: string; url: string; type: string }> =>
   request("/api/files", "POST", { token, ...target, name, size });
 export const uploadDone = (token: string, id: string): Promise<unknown> => request(`/api/files/${id}/done`, "POST", { token });

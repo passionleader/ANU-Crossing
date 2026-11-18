@@ -38,6 +38,7 @@ import {
   signupStart,
   signupCheck,
   getSavedChats,
+  saveMyNotes,
   getSavedChat,
   deleteSavedChat,
   signupFinish,
@@ -83,6 +84,7 @@ import {
 } from "./api.ts";
 import { mountMyRoomUi } from "./myroomui.ts";
 import { mountTheatreUi, type Question } from "./theatreui.ts";
+import { mountNotePad } from "./notepad.ts";
 import { homeOwnerOf, type HomeSpace, type Layout } from "./spaces/myroom.ts";
 import { mountChat } from "./chatui.ts";
 import { mountJoinNow } from "./joinnow.ts";
@@ -367,7 +369,32 @@ guideBtn.addEventListener("click", () => guide.open());
 // --- My Room (the user, 11/18) -------------------------------------------------------------
 // Everyone's own room (spaces/myroom.ts, server/myroom.ts): a round house button (icons.ts) left of the guide takes
 // you there from anywhere (back out, you're by the residence's door on the north road, which also
-// leads in). Inside, the room window has its owner's notebook, calendar and furniture editor.
+// leads in). Inside, the room window has its owner's notes, calendar and furniture editor.
+/** Your own notes' saving and pictures (notepad.ts), for the theatre's panel and My Room's desk. */
+function ownNotes(placeholder: string, layout: "side" | "stack"): Parameters<typeof mountNotePad>[0] {
+  return {
+    member: () => isMember(session),
+    async save(text) {
+      if (!session) return "Join first.";
+      try {
+        await saveMyNotes(session.token, text);
+        return null;
+      } catch (e) {
+        return e instanceof ApiError ? e.message : "Couldn't save. Try again.";
+      }
+    },
+    async addImage(file) {
+      if (!session) return "Join first.";
+      let id = "";
+      const error = await upload(session.token, { kind: "note" }, file, undefined, (got) => (id = got));
+      return error ?? { id };
+    },
+    imageLink: async (id) => (session ? imageLink(session.token, id) : null),
+    guestNote: "A guest's notes can't be saved or hold pictures: sign up to keep them.",
+    placeholder,
+    layout,
+  };
+}
 // The lecture theatre's screen, buttons and Q&A (theatreui.ts; server/theatre.ts).
 const theatreUi = mountTheatreUi({
   send: (msg) => !!net && net.raw(msg),
@@ -378,20 +405,7 @@ const theatreUi = mountTheatreUi({
   screenHole: (on) => {
     if (space?.id === "theatre") theatreScreenHole(space.group, on);
   },
-  notebook: () =>
-    session && isMember(session)
-      ? {
-          load: async () => (await getMyRoom(session!.token)).notebook,
-          save: async (text) => {
-            try {
-              await putMyRoom(session!.token, { notebook: text });
-              return null;
-            } catch (e) {
-              return e instanceof ApiError ? e.message : "Couldn't save. Try again.";
-            }
-          },
-        }
-      : null,
+  notes: ownNotes("Notes for this lecture (Markdown).\n# Topic\n- point", "stack"),
 });
 const myRoomBtn = document.createElement("button");
 myRoomBtn.type = "button";
@@ -426,6 +440,7 @@ const myRoomUi = mountMyRoomUi({
     homeSpace(space?.id)?.setLayout(layout);
   },
   say: (msg) => toast(msg),
+  notes: ownNotes("# Today\n- [ ] Lab 3\n- Read chapter 4\n\nMarkdown: # headings, - lists, **bold**, [links](https://…). Drop a picture in, or 🖼.", "side"),
 });
 /** Walks into your own room (the server lets its owner in, always). */
 function goHome(): void {
@@ -433,7 +448,8 @@ function goHome(): void {
   const own = `home-${session.name.toLowerCase()}`;
   if (space?.id === own) return void roomPanel.show("menu");
   stopMoving();
-  net.enter(own, -3.4, 3.4);
+  // Unsaved notes in the theatre ask first.
+  void theatreUi.confirmLeave().then((go) => go && net?.enter(own, -3.4, 3.4));
 }
 myRoomBtn.addEventListener("click", goHome);
 /** Coming into someone's room: lay out their furniture (yours from your own data, theirs as a visitor). */
@@ -463,7 +479,7 @@ guestRoomNotice.setAttribute("aria-labelledby", "myroom-guest-title");
   h.id = "myroom-guest-title";
   h.textContent = "Your room resets when you leave";
   const p = document.createElement("p");
-  p.textContent = "You're a guest, so nothing in here is kept: your notebook, calendar and furniture are cleared as soon as you leave the room. Sign up with your ANU email to keep them.";
+  p.textContent = "You're a guest, so nothing in here is kept: your notes, calendar and furniture are cleared as soon as you leave the room. Sign up with your ANU email to keep them.";
   const ok = document.createElement("button");
   ok.type = "button";
   ok.className = "room-primary";
@@ -495,11 +511,18 @@ function showUnread(n: number): void {
   mailBtn.setAttribute("aria-label", n ? `Mail, ${n} unread` : "Mail");
 }
 showUnread(0);
+/** Where a saved chat or saved notes were written, in words (a meeting room, the theatre, a My Room). */
+function savedPlace(id: string): string {
+  const home = homeOwnerOf(id);
+  if (home) return session && home === session.name.toLowerCase() ? "My Room" : `${home}'s room`;
+  if (id === "theatre") return "Lecture theatre";
+  return meetingRoom(id)?.title ?? "A meeting room";
+}
 const mailbox = mountMailbox({
   async chats() {
     if (!session) return "Join first.";
     try {
-      return (await getSavedChats(session.token)).map((c) => ({ id: c.id, savedAt: c.savedAt, title: `${c.kind === "notes" ? "📝 Notes" : "💬 Chat"} · ${meetingRoom(c.space)?.title ?? "A meeting room"}` }));
+      return (await getSavedChats(session.token)).map((c) => ({ id: c.id, savedAt: c.savedAt, title: `${c.kind === "notes" ? "📝 Notes" : "💬 Chat"} · ${savedPlace(c.space)}` }));
     } catch (err) {
       return err instanceof ApiError ? err.message : "Could not load your saved chats.";
     }
@@ -508,7 +531,7 @@ const mailbox = mountMailbox({
     if (!session) return "Join first.";
     try {
       const c = await getSavedChat(session.token, id);
-      return { title: `${c.kind === "notes" ? "📝 Notes" : "💬 Chat"} · ${meetingRoom(c.space)?.title ?? "A meeting room"}`, savedAt: c.savedAt, lines: c.lines };
+      return { title: `${c.kind === "notes" ? "📝 Notes" : "💬 Chat"} · ${savedPlace(c.space)}`, savedAt: c.savedAt, lines: c.lines };
     } catch (err) {
       return err instanceof ApiError ? err.message : "Could not open that chat.";
     }
@@ -1337,7 +1360,7 @@ const roomPanel = mountRoomPanel({
   onOpenFile: async (id) => (session ? openFile(session.token, id) : "Join first."),
   onImageLink: async (id) => (session ? imageLink(session.token, id) : null),
   onNotice: (msg) => popup(msg),
-  onHome: (what) => void myRoomUi.open(what),
+  onHome: (what) => (what === "saved" ? (isMember(session) ? mailbox.open(undefined, true) : toast("Sign up to save notes.")) : void myRoomUi.open(what)),
   isMine: () => !!space && !!session && homeOwnerOf(space.id) === session.name.toLowerCase(),
   isGuest: () => !!session && !isMember(session),
   maxLength: 200,
@@ -2988,6 +3011,13 @@ function interact(): void {
   if (target.kind === "seat") return sitDown(target.index);
   // Anything but a door opens a window: a soft "open" sound (the dog barks instead).
   if (target.kind !== "door" && !(target.kind === "spot" && target.id === "dog")) sfx("open");
+  if (target.kind === "door" && space?.id === "theatre") {
+    // Out of the theatre with unsaved notes: asked first (save, clear, or stay).
+    stopMoving();
+    const door = target.door;
+    void theatreUi.confirmLeave().then((go) => go && setSpace(door.to, door.arrive, true));
+    return;
+  }
   if (target.kind === "door") {
     // The residence's door: your own room, whoever you are.
     if (target.door.to === "home") return goHome();
@@ -3013,11 +3043,18 @@ function interact(): void {
       dogPrompt.open();
     }
     else if (target.id === "cafes") cafeGuide.open();
-    // My Room's desk: sit down, and (in your own room) the notebook opens.
+    // My Room's desk: sit down, and (in your own room) your notes open.
     else if (target.id === "home:desk") {
       const seat = space?.seats?.findIndex((st) => Math.hypot(st.x - player.position.x, st.z - player.position.z) < 1.4) ?? -1;
       if (seat >= 0) sitDown(seat);
       if (space && session && homeOwnerOf(space.id) === session.name.toLowerCase()) void myRoomUi.open("notebook");
+    }
+    // My Room's bookcase: the notes you saved (the mailbox's Saved tab), your own room only.
+    else if (target.id === "home:shelf") {
+      if (space && session && homeOwnerOf(space.id) === session.name.toLowerCase()) {
+        if (isMember(session)) mailbox.open(undefined, true);
+        else toast("Your saved notes live here. Sign up to save notes.");
+      } else toast("Someone else's bookcase: their saved notes are theirs.");
     }
     else if (target.id === "lectern") theatreUi.lectern();
     else if (target.id === "calendar") calendar.open();

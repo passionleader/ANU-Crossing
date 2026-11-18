@@ -72,6 +72,7 @@ import {
   purgeOldPoops,
   savedChatsOf,
   savedChat,
+  saveChat,
   deleteSavedChat,
   purgeIdleGuests,
   createGuest,
@@ -109,6 +110,7 @@ import {
   findFile,
   claimBoardPictures,
   filesOn,
+  keepNoteFiles,
   markFileReady,
   purgeFiles,
   uploadsToday,
@@ -618,6 +620,25 @@ app.post("/api/chats/:id", async (c) => {
   if (!v) return c.json({ error: "Join first." }, 401);
   const chat = savedChat(v.name, Number(c.req.param("id")));
   return chat ? c.json(chat) : c.json({ error: "That chat is gone." }, 404);
+});
+// Your own notes, written in the lecture theatre or My Room (the user, 11/18): nothing is kept
+// while you write; "Save" keeps a copy here, like a meeting room's saved notes, 30 days, yours only,
+// with the pictures they show. The place is where the server has you, never the browser's word.
+app.post("/api/my-notes", async (c) => {
+  const b = await body(c);
+  const v = who(b);
+  if (!v) return c.json({ error: "Join first." }, 401);
+  if (!isMember(v)) return c.json({ error: "Sign up to save your notes." }, 403);
+  const bad = notebookError(b.text);
+  if (bad) return c.json({ error: bad }, 400);
+  const text = (b.text as string).trim();
+  if (!text) return c.json({ error: "There's nothing to save yet." }, 400);
+  const space = livePlayer(v.name)?.space;
+  if (!space) return c.json({ error: "Join first." }, 401);
+  const id = saveChat(v.name, space, [{ name: "Notes", text }], "notes");
+  keepNoteFiles([...text.matchAll(/\(note-file:([A-Za-z0-9-]+)\)/g)].map((m) => m[1]!), id, v.name);
+  log("chat-saved", v, { space, lines: 1, what: "own notes" });
+  return c.json({ id }, 201);
 });
 app.delete("/api/chats/:id", async (c) => {
   const v = who(await body(c));
@@ -1682,7 +1703,7 @@ app.post("/api/files", async (c) => {
   const guest = guestRefused(c, v, "upload");
   if (guest) return guest;
   const kind = b.kind as FileKind;
-  if (kind !== "bug" && kind !== "board" && kind !== "room") return c.json({ error: "Attach it to what?" }, 400);
+  if (kind !== "bug" && kind !== "board" && kind !== "room" && kind !== "note") return c.json({ error: "Attach it to what?" }, 400);
   const name = cleanName(b.name);
   if (!name) return c.json({ error: "That file needs a name of up to 120 characters." }, 400);
   const refuse = (reason: string, status: 400 | 403 | 429): Response => {
@@ -1703,6 +1724,9 @@ app.post("/api/files", async (c) => {
     if (filesOn("bug", report.id, true).length >= 1) return refuse("One screenshot per report.", 400);
     bugId = report.id;
     space = report.space;
+  } else if (kind === "note") {
+    // A picture in your own notes (the theatre's or My Room's): yours alone, kept if you save them.
+    space = livePlayer(v.name)?.space ?? null;
   } else if (kind === "board" && b.post === undefined) {
     // A picture dropped into a post being written (or edited): it goes up now, with no post yet,
     // and the post takes it when it is saved (claimBoardPictures). Images only, onto a board
@@ -1778,13 +1802,14 @@ app.post("/api/files/:id/link", async (c) => {
     // A board picture no post has taken yet: its uploader alone (the post they're writing).
     (f.kind === "board" && (f.postId === null ? f.owner === v.name : maySeePost(v, findPost(f.postId) ?? { author: "", private: true }))) ||
     (f.kind === "bug" && mayUseAdminPc(v)) ||
+    (f.kind === "note" && f.owner === v.name) ||
     (f.kind === "room" && (() => {
       const at = livePlayer(v.name)?.space;
       return (!!at && f.room !== null && roomSessionOf(v.name, at) === f.room) || keepsFile(v.name, f.id);
     })());
   if (!allowed) {
     log("refused", v, { action: "download", kind: f.kind, reason: f.kind === "room" ? "not in the room" : "not admin" }, { ip: ipOf(c), content: f.name });
-    return c.json({ error: f.kind === "room" ? "Only the people in the room can open its files." : f.kind === "board" ? "That post is private." : "This is for the admin." }, 403);
+    return c.json({ error: f.kind === "room" ? "Only the people in the room can open its files." : f.kind === "board" ? "That post is private." : f.kind === "note" ? "That picture is in someone's own notes." : "This is for the admin." }, 403);
   }
   try {
     // Images may be shown in place (a post's picture, a bug's screenshot); everything else downloads.

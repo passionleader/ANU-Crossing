@@ -13,8 +13,10 @@
 import { DeleteObjectsCommand, GetObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-export type FileKind = "bug" | "board" | "room";
-export const PREFIX: Record<FileKind, string> = { bug: "bug-shots", board: "board-files", room: "room-files" };
+export type FileKind = "bug" | "board" | "room" | "note";
+// A picture in your own notes (the theatre's, My Room's) sits beside a room's files: the bucket's
+// rules and the app's key already cover that folder.
+export const PREFIX: Record<FileKind, string> = { bug: "bug-shots", board: "board-files", room: "room-files", note: "room-files" };
 
 export const MAX_FILE_BYTES = 200 * 1024 * 1024;
 export const FILE_DAYS = 30;
@@ -54,6 +56,7 @@ export function fileError(kind: FileKind, name: string, size: unknown): string |
   const ext = extOf(name);
   if (!TYPES[ext]) return "Only images (png, jpg, gif, webp), PDF, txt, md, docx, pptx, xlsx and zip files.";
   if (kind === "bug" && !IMAGES.has(ext)) return "A screenshot must be an image (png, jpg, gif or webp).";
+  if (kind === "note" && !IMAGES.has(ext)) return "Only a picture goes into your notes (png, jpg, gif or webp).";
   if (typeof size !== "number" || !Number.isInteger(size) || size <= 0) return "That file is empty.";
   if (size > MAX_FILE_BYTES) return "Files can be up to 200 MB.";
   return null;

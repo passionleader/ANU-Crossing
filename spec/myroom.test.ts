@@ -6,6 +6,8 @@ import { api, closeAll, connect, guest, visitor, type Msg } from "./helpers.ts";
 // owner's alone; its furniture is seen by whoever is in the room, and only the owner moves it. A
 // member's is kept in SQLite; a guest's only in memory, gone when they leave. Sticky notes go up in it
 // from inside only, and only its owner and whoever is in it read them; the owner may take any down.
+// Your own notes (the theatre's panel, My Room's desk) are kept only when you press Save: a copy in
+// the mailbox's Saved tab, yours alone, as a meeting room's saved notes.
 
 afterEach(closeAll);
 
@@ -114,6 +116,31 @@ describe("My Room", () => {
     expect(seen.map((n) => n.text).sort()).toEqual(["Buy milk", "Nice room!"]);
     expect((await api(`/api/notes/${note}`, "DELETE", { token: owner.token })).status).toBe(200);
   }, 15_000);
+
+  it("saves your own notes to your mailbox only when you press Save, for you alone, never a guest's", async () => {
+    const me = await visitor();
+    const other = await visitor();
+    const room = home(me.name);
+    const s = await walkIn(me.token, room);
+    await s.next(opened(room));
+    expect((await api("/api/my-notes", "POST", { token: me.token, text: "   " })).status).toBe(400);
+    expect((await api("/api/my-notes", "POST", { token: me.token, text: "x".repeat(5001) })).status).toBe(400);
+    const res = await api("/api/my-notes", "POST", { token: me.token, text: "# Lab 3\n- ask about Q2" });
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: number };
+    // It's in the Saved list as notes, where the server had you (your room), and only yours.
+    const list = (await (await api("/api/chats", "POST", { token: me.token })).json()) as { id: number; space: string; kind: string }[];
+    expect(list).toContainEqual(expect.objectContaining({ id, space: room, kind: "notes" }));
+    const one = (await (await api(`/api/chats/${id}`, "POST", { token: me.token })).json()) as { lines: { name: string; text: string }[] };
+    expect(one.lines).toEqual([{ name: "Notes", text: "# Lab 3\n- ask about Q2" }]);
+    expect((await api(`/api/chats/${id}`, "POST", { token: other.token })).status).toBe(404);
+    // A guest can't save, nor upload a picture for notes; a picture for your notes must be one.
+    const g = await guest();
+    expect((await api("/api/my-notes", "POST", { token: g.token, text: "hi" })).status).toBe(403);
+    expect((await api("/api/files", "POST", { token: g.token, kind: "note", name: "a.png", size: 10 })).status).toBe(403);
+    expect((await api("/api/files", "POST", { token: me.token, kind: "note", name: "a.pdf", size: 10 })).status).toBe(400);
+    expect([201, 503]).toContain((await api("/api/files", "POST", { token: me.token, kind: "note", name: "a.png", size: 10 })).status);
+  });
 
   it("gives a guest a room that is forgotten once they leave it", async () => {
     const g = await guest();

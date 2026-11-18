@@ -5,7 +5,8 @@ import { renderMarkdown } from "./markdown.ts";
 
 // The mailbox (plan 16): messages to and from people signed up, by name,
 // read whenever you come in. Four views in one window: Inbox, Sent, Write,
-// and Saved (meeting-room chats and shared notes you kept, plan 37 and 83: yours only, 30 days).
+// and Saved (meeting-room chats and shared notes you kept, plan 37 and 83, and your own notes saved in
+// the lecture theatre or My Room, 11/18: yours only, 30 days).
 // main does the requests; this only shows them. Guests see why they can't.
 
 export interface MailView {
@@ -265,7 +266,7 @@ export function mountMailbox(opts: {
     if (!items.length) {
       const p = document.createElement("p");
       p.className = "mail-empty";
-      p.textContent = "Nothing saved. In a meeting room, the room menu's Save chat and Save notes keep a copy here for 30 days.";
+      p.textContent = "Nothing saved. Your notes' Save (in the lecture theatre or My Room), and a meeting room's Save chat and Save notes, keep a copy here for 30 days.";
       body.replaceChildren(p);
       return;
     }
@@ -307,7 +308,7 @@ export function mountMailbox(opts: {
         const notes = document.createElement("div");
         notes.className = "saved-notes";
         const h = document.createElement("strong");
-        h.textContent = "📝 Shared notes";
+        h.textContent = "📝 Notes";
         // Rendered like the room's notes, pictures included: saving keeps the notes' pictures for
         // you, under the bucket's 30 days from upload (the user, 11/9). One past that says so.
         notes.append(
