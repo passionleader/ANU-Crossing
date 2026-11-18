@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { solid, type Box } from "../world.ts";
+import { solid, warm, type Box } from "../world.ts";
 
 // The dog on the lawn (Quaternius, CC0, credited in assets/CREDITS.md; moved
 // from in front of 154 by the user's call, 10/30). It stands among the flower
@@ -31,8 +31,9 @@ export function addDog(g: THREE.Group, colliders: Box[]): (dt: number) => void {
 
   new GLTFLoader()
     .loadAsync(`${import.meta.env.BASE_URL}assets/animals/dog.glb`)
-    .then((gltf) => {
+    .then(async (gltf) => {
       const model = gltf.scene;
+      await warm(model);
       const box = new THREE.Box3().setFromObject(model);
       model.scale.setScalar(HEIGHT / (box.max.y - box.min.y));
       model.traverse((o) => {

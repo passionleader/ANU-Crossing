@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { clone as cloneSkinned } from "three/examples/jsm/utils/SkeletonUtils.js";
-import { buildPlayer } from "./world.ts";
+import { buildPlayer, warm } from "./world.ts";
 
 // People: Kenney's "Mini Characters" (CC0, credited in assets/CREDITS.md),
 // rigged, with idle, walk, sprint, sit and yes/no clips. Each figure's
@@ -139,7 +139,8 @@ function loadTemplate(v: Variant): Promise<Template | null> {
       const box = new THREE.Box3().setFromObject(scene);
       scene.scale.multiplyScalar(CHARACTER.height / (box.max.y - box.min.y));
       scene.rotation.y = CHARACTER.yaw;
-      return { scene, clips: gltf.animations };
+      // Skinned shaders compiled before the first figure is drawn (see world.ts warm).
+      return warm(scene).then(() => ({ scene, clips: gltf.animations }));
     })
     .catch(() => null);
   templates.set(v, template);
@@ -218,6 +219,8 @@ export function defaultLookFor(name: string): Look {
   return { ...DEFAULT_LOOK, body: (h % 2) as 0 | 1, skin: (h >> 1) % SKIN.length, hair: (h >> 4) % HAIR.length, top: (h >> 8) % CLOTH.length };
 }
 
+/** A dressed figure's shader, compiled once per body on a stand-in that is kept (see dress). */
+const dressedReady = new Map<Variant, Promise<THREE.Object3D>>();
 /** Puts the look's texture on every mesh of a model (each figure gets its own material). */
 function dress(model: THREE.Object3D, variant: Variant, look: Look): void {
   model.traverse((o) => {
@@ -227,13 +230,26 @@ function dress(model: THREE.Object3D, variant: Variant, look: Look): void {
     mesh.receiveShadow = true;
     const own = (mesh.material as THREE.MeshStandardMaterial).clone();
     mesh.material = own;
-    void skinTexture(variant, look).then((tex) => {
+    void skinTexture(variant, look).then(async (tex) => {
       if (!tex) return;
-      own.map = tex;
-      // The texture glows too, at nothing until a lamp's light lifts it (main.ts, litByLamps).
-      own.emissiveMap = tex;
-      own.emissive.setHex(0xffd8a8);
-      own.emissiveIntensity = 0;
+      const dressed = (): void => {
+        own.map = tex;
+        // The texture glows too, at nothing until a lamp's light lifts it (main.ts, litByLamps).
+        own.emissiveMap = tex;
+        own.emissive.setHex(0xffd8a8);
+        own.emissiveIntensity = 0;
+      };
+      // The dressed shader compiled first on a stand-in (kept, so the shader stays), then swapped in.
+      if (!dressedReady.has(variant) && (mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+        const probe = new THREE.SkinnedMesh((mesh as THREE.SkinnedMesh).geometry, own.clone());
+        (probe as THREE.SkinnedMesh).bind((mesh as THREE.SkinnedMesh).skeleton, (mesh as THREE.SkinnedMesh).bindMatrix);
+        const m = probe.material as THREE.MeshStandardMaterial;
+        m.map = tex;
+        m.emissiveMap = tex;
+        dressedReady.set(variant, warm(probe).then(() => probe));
+      }
+      if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) await dressedReady.get(variant);
+      dressed();
       own.needsUpdate = true;
     });
   });

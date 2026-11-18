@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { block, enableShadows, floor, loadModel, mat, scatter, solid, texMat, textPlane, wind, type Box, type Spot } from "../world.ts";
+import { addWarm, block, enableShadows, floor, loadModel, mat, scatter, solid, texMat, textPlane, wind, type Box, type Spot } from "../world.ts";
 import { HIGH } from "../settings.ts";
 import { markOccluderGroup } from "./occluders.ts";
 import { asphaltMat } from "./backdrop.ts";
@@ -414,7 +414,7 @@ function tree(g: THREE.Group, file: string, p: { x: number; z: number }, height:
     m.position.set(p.x, 0, p.z);
     m.rotation.y = rotY;
     enableShadows(m);
-    g.add(m);
+    addWarm(g, m);
   });
 }
 

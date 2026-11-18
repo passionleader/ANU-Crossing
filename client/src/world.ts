@@ -240,6 +240,28 @@ export const glassMat = (tint = 0xb7d0e0): THREE.MeshStandardMaterial => {
 // attached only once the image has arrived: cloning flags a texture for
 // upload, and uploading one with no image yet makes three.js warn.
 const loaderTex = new THREE.TextureLoader();
+
+/**
+ * Compiles an object's shaders before it is drawn (main.ts sets it to the renderer's compileAsync).
+ * Without it, a model or texture that arrives after the space is built compiles its shaders inside
+ * the next frame, and on a slow host they arrive one by one, each freezing a frame (the user, 11/18:
+ * a CPU profile of joining through a slow link showed ~1.5 s in getProgramInfoLog and getUniforms).
+ * The browser compiles in the background (KHR_parallel_shader_compile) and this resolves when done.
+ */
+let warmUp: (o: THREE.Object3D) => Promise<unknown> = () => Promise.resolve();
+export function setWarmUp(f: (o: THREE.Object3D) => Promise<unknown>): void {
+  warmUp = f;
+}
+/** Compiles `o`'s materials off the frame, never failing (a failure only means it compiles when drawn). */
+export const warm = (o: THREE.Object3D): Promise<void> => warmUp(o).then(() => undefined, () => undefined);
+/**
+ * Adds a model that arrived late once its own shaders are ready: the copy actually drawn (tinted,
+ * instanced, recoloured leaves) can need a different shader from the loaded original.
+ */
+export function addWarm(parent: THREE.Object3D, child: THREE.Object3D): void {
+  void warm(child).then(() => parent.add(child));
+}
+const warmGeo = new THREE.PlaneGeometry(1, 1);
 const textures = new Map<string, { image: THREE.Texture | null; waiting: (() => void)[] }>();
 export function texMat(file: string, repeatX: number, repeatY: number, tint = 0xffffff, roughness = 0.9): THREE.MeshStandardMaterial {
   const material = new THREE.MeshStandardMaterial({ color: tint, roughness, metalness: 0 });
@@ -262,8 +284,18 @@ export function texMat(file: string, repeatX: number, repeatY: number, tint = 0x
   const attach = (): void => {
     const map = e.image!.clone();
     map.repeat.set(repeatX, repeatY);
-    material.map = map;
-    material.needsUpdate = true;
+    // Compile the textured version on a stand-in first, then swap it in: the material keeps drawing
+    // untextured until its new shader is ready, instead of stalling a frame to compile it.
+    const ready = material.clone();
+    ready.map = map;
+    void warm(new THREE.Mesh(warmGeo, ready)).then(() => {
+      material.map = map;
+      material.needsUpdate = true;
+      // Not disposed until the real material has drawn with the same shader a few times: disposing
+      // the stand-in first would release the shader it compiled, and the real one would compile it
+      // again, on the frame (which is what this is here to avoid).
+      window.setTimeout(() => ready.dispose(), 5000);
+    });
   };
   if (e.image) attach();
   else e.waiting.push(attach);
@@ -383,7 +415,7 @@ export function place(g: THREE.Group, file: string, height: number, x: number, z
     m.rotation.y = rotY;
     if (shadow) enableShadows(m);
     else m.traverse((o) => void (o.userData.noShadow = true));
-    g.add(m);
+    addWarm(g, m);
   });
 }
 
@@ -421,7 +453,7 @@ export function scatter(g: THREE.Group, file: string, height: number, spots: Spo
       inst.castShadow = shadow;
       inst.receiveShadow = true;
       inst.userData.noShadow = !shadow;
-      g.add(inst);
+      addWarm(g, inst);
     });
   });
 }
@@ -611,7 +643,8 @@ export function loadModel(file: string, height: number): Promise<THREE.Group | n
         if (RICH && file.startsWith("nature/")) addWind(model);
         const g = new THREE.Group();
         g.add(model);
-        return g;
+        // Ready to draw before anyone places it.
+        return warm(g).then(() => g);
       })
       .catch(() => null);
     cache.set(key, p);

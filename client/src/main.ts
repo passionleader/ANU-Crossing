@@ -134,7 +134,7 @@ import { mountRadial } from "./radial.ts";
 import { getSpace, isSpaceId, meetingRoom, setClassrooms } from "./spaces/index.ts";
 import { roomArrival } from "./spaces/meeting.ts";
 import { materialsOf, occludersOf } from "./spaces/occluders.ts";
-import { SUN_DIR, addLights, buildNote, enableShadows, groundAt, gust, keepIn, loadModel, nightGlow, pushOut, wind, type Door, type Seat, type SpaceDef, type SpaceId } from "./world.ts";
+import { SUN_DIR, addLights, buildNote, enableShadows, groundAt, gust, keepIn, loadModel, nightGlow, pushOut, setWarmUp, addWarm, wind, type Door, type Seat, type SpaceDef, type SpaceId } from "./world.ts";
 import { LAMP_HEADS } from "./spaces/streetscape.ts";
 import { canberraTime } from "./when.ts";
 import { clearAllDrafts } from "./drafts.ts";
@@ -464,6 +464,10 @@ const renderer = ((): THREE.WebGLRenderer => {
 // Medium and High: up to one and a half times the screen's pixels (a Retina or phone screen is
 // dense; twice, on High, made a MacBook lag for little you could see: the user, 11/4); Low: one.
 renderer.setPixelRatio(RICH ? Math.min(window.devicePixelRatio, 1.5) : 1);
+/** Until when drawing waits for a new space's shaders (setSpace); 0 when it doesn't. */
+let holdDraw = 0;
+// Late models and textures compile in the background before they're drawn (world.ts warm).
+setWarmUp((o) => renderer.compileAsync(o, camera, scene));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.85;
 renderer.shadowMap.enabled = highQuality;
@@ -1722,7 +1726,7 @@ function placeNpcs(s: SpaceDef): void {
         model.traverse((o) => {
           if (/^(Plane|Circle)/.test(o.name)) o.visible = false;
         });
-        body.add(model);
+        addWarm(body, model);
       });
       npcTags.push({ obj: tag(ghost, `${n.name} · AI`, 2.8, "player-label npc-label"), at: ghost });
       const reach = n.reach ?? 1.6;
@@ -1848,6 +1852,45 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
     space.group.userData.shadowsOn = true;
   }
   scene.add(space.group);
+  // A space seen for the first time: its shaders compile in the background now (the fade covers
+  // the first frames), rather than all inside the first frame drawn (world.ts warm).
+  if (!space.group.userData.warmed) {
+    space.group.userData.warmed = true;
+    // Drawing waits (under the fade, at most 1.5 s) until the compile is done: a draw while the
+    // browser is still compiling in the background blocks the page until it finishes, which was
+    // the freeze right after joining on a slow connection (the user, 11/18).
+    const until = performance.now() + 1500;
+    holdDraw = until;
+    if (fade) fade.classList.add("on");
+    const done = (): void => {
+      if (holdDraw !== until) return;
+      holdDraw = 0;
+      fade?.classList.remove("on");
+    };
+    void renderer.compileAsync(space.group, camera, scene).catch(() => undefined).then(done);
+    window.setTimeout(done, 1500);
+    // Buildings that fade when they hide you turn transparent only while fading, and transparent
+    // is a different shader: compile that one now too, on stand-ins, so the first fade doesn't stall.
+    const group = space.group;
+    const twins = new THREE.Group();
+    const seen = new Set<THREE.Material>();
+    for (const o of occludersOf(space.group))
+      for (const mesh of o.meshes)
+        for (const m of materialsOf(mesh)) {
+          if (m.transparent || seen.has(m)) continue;
+          seen.add(m);
+          const twin = m.clone();
+          twin.transparent = true;
+          twin.depthWrite = false;
+          twins.add(new THREE.Mesh(mesh.geometry, twin));
+        }
+    if (twins.children.length)
+      void renderer
+        .compileAsync(twins, camera, scene)
+        .catch(() => undefined)
+        // Kept, never disposed: disposing them would release the transparent shaders just compiled.
+        .then(() => (group.userData.fadeTwins = twins));
+  }
   radial.relabel("note", id === "poop" ? "1 · 💩 Poop" : "1 · 📝 Sticky note");
   // Clear the last room's poops; in the Poop Room the server's list follows.
   showPoops([]);
@@ -3160,6 +3203,7 @@ renderer.setAnimationLoop(() => {
   const now = performance.now();
   update(Math.min((now - lastTime) / 1000, 0.1), now);
   lastTime = now;
+  if (holdDraw && now < holdDraw) return;
   renderer.render(scene, camera);
   labelRenderer.render(scene, camera);
 });
