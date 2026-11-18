@@ -8,7 +8,10 @@ import { SCREEN } from "./spaces/theatre.ts";
 // plays in a player laid over the 3D screen, kept on it as the camera moves; "Big view" makes it fill
 // the window. "Notes" opens your My Room notebook on the right (a guest's stay in this browser), "Ask" the
 // theatre's Q&A (everyone there reads it, the lecturer too), and "Raise hand" tells the lecturers
-// who. Staff also get the link box, play/pause through the player, and the list of raised hands.
+// who. Staff also get the list of raised hands and, anywhere in the theatre ("Screen", or E at the
+// lectern), the link box and play, pause and skip, which everyone follows.
+// The player sits under the 3D view and the screen is a hole onto it (spaces/theatre.ts), so it lies
+// flat on the wall in perspective and people standing in front of it stay in front of it.
 
 export interface Question {
   name: string;
@@ -17,6 +20,35 @@ export interface Question {
 }
 
 const NOTES_KEY = "campus.theatre-notes";
+/** The player's size in device pixels away from Big view: 480p, so YouTube and Vimeo stay under 720p. */
+const PLAYER_W = 854;
+const PLAYER_H = 480;
+
+/**
+ * The CSS matrix3d that draws a w x h box onto four points on the page (top-left, top-right,
+ * bottom-right, bottom-left, as x,y pairs): the square-to-quad projection (Heckbert), scaled to
+ * the box. Null if the points are degenerate.
+ */
+export function quadTransform(w: number, h: number, q: number[]): string | null {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = q as [number, number, number, number, number, number, number, number];
+  const dx1 = x1 - x2;
+  const dx2 = x3 - x2;
+  const sx = x0 - x1 + x2 - x3;
+  const dy1 = y1 - y2;
+  const dy2 = y3 - y2;
+  const sy = y0 - y1 + y2 - y3;
+  const det = dx1 * dy2 - dx2 * dy1;
+  if (!Number.isFinite(det) || Math.abs(det) < 1e-9) return null;
+  const g = (sx * dy2 - dx2 * sy) / det;
+  const k = (dx1 * sy - sx * dy1) / det;
+  const a = x1 - x0 + g * x1;
+  const b = x3 - x0 + k * x3;
+  const d = y1 - y0 + g * y1;
+  const e = y3 - y0 + k * y3;
+  // Column-major, with u = x / w and v = y / h folded in.
+  const m = [a / w, d / w, 0, g / w, b / h, e / h, 0, k / h, 0, 0, 1, 0, x0, y0, 0, 1];
+  return m.every(Number.isFinite) ? `matrix3d(${m.map((n) => +n.toFixed(8)).join(",")})` : null;
+}
 
 export function mountTheatreUi(deps: {
   send(msg: Record<string, unknown>): boolean;
@@ -25,6 +57,8 @@ export function mountTheatreUi(deps: {
   me(): string;
   say(msg: string): void;
   notSent(): void;
+  /** Turns the 3D screen into a hole onto the player (true) or back to its idle card. */
+  screenHole(on: boolean): void;
   /** Your My Room notebook, for a member (null: a guest, whose notes stay in this browser). */
   notebook(): { load(): Promise<string>; save(text: string): Promise<string | null> } | null;
 }): {
@@ -39,6 +73,8 @@ export function mountTheatreUi(deps: {
   handUp(name: string): void;
   ask(q: Question, staff: boolean): void;
   isTyping(): boolean;
+  /** E at the lectern: staff get the screen's controls; anyone else is told they can't. */
+  lectern(): void;
 } {
   // --- the player over the screen ------------------------------------------------------
   const screen = mountRoomScreen({
@@ -60,7 +96,7 @@ export function mountTheatreUi(deps: {
   // A browser plays a video with sound only after a first click on the page; until then, say so.
   const startHint = document.createElement("p");
   startHint.className = "theatre-start-hint";
-  startHint.textContent = "▶ Click the video once to join in";
+  startHint.textContent = "▶ Click anywhere once to join in";
   startHint.hidden = true;
   frameEl.append(startHint);
   document.body.append(frameEl);
@@ -83,8 +119,8 @@ export function mountTheatreUi(deps: {
   const notesBtn = btn("📝 Notes", "Your own notes beside the lecture (your My Room notebook)");
   const askBtn = btn("💬 Ask", "The theatre's Q&A: ask the lecturer (everyone here reads it)");
   const handBtn = btn("✋ Raise hand", "Tell the lecturer you have a question");
-  // Staff only: the screen's controls (a link to show, stop it for everyone), in the side panel.
-  const screenBtn = btn("📺 Screen", "Put a YouTube or Vimeo video on the big screen");
+  // Staff run the screen from anywhere in the theatre (the user, 11/18), here or E at the lectern.
+  const screenBtn = btn("📺 Screen", "Put a video on the big screen, play, pause or skip it");
   screenBtn.hidden = true;
   const handsBadge = document.createElement("span");
   handsBadge.className = "theatre-count";
@@ -146,12 +182,41 @@ export function mountTheatreUi(deps: {
   lect.className = "theatre-lect";
   const lectHelp = document.createElement("p");
   lectHelp.className = "settings-note";
-  lectHelp.textContent = "Paste a YouTube or Vimeo link: it plays on the big screen for everyone here. Play, pause and skip with the player on the screen; everyone follows you. Only staff can do this.";
+  lectHelp.textContent = "Paste a YouTube or Vimeo link: it plays on the big screen for everyone here. Play, pause and skip with the buttons above (or the player itself in Big view); everyone follows you. Only staff can do this.";
   const form = screen.el.querySelector<HTMLFormElement>(".rs-form");
   const buttons = screen.el.querySelector<HTMLElement>(".rs-buttons");
   const lectStatus = screen.el.querySelector<HTMLElement>(".rs-status");
   if (form) lect.append(form);
   if (lectStatus) lect.append(lectStatus);
+  // Play, pause and skip for everyone: the player itself sits under the 3D view, out of reach of a click.
+  const ctl = document.createElement("div");
+  ctl.className = "theatre-ctl";
+  const ctlBtn = (label: string, title: string, run: () => void): HTMLButtonElement => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = label;
+    b.title = title;
+    b.addEventListener("click", run);
+    ctl.append(b);
+    return b;
+  };
+  const op = (name: string, pos: number): void => {
+    if (!deps.send({ t: "action", kind: "theatre", what: "video", op: name, pos: Math.max(0, pos) })) deps.notSent();
+  };
+  ctlBtn("⏪ 10 s", "Back ten seconds, for everyone", () => {
+    const w = screen.where();
+    if (w) op("seek", w.pos - 10);
+  });
+  const playBtn = ctlBtn("▶ Play", "Play or pause, for everyone", () => {
+    const w = screen.where();
+    if (w) op(w.playing ? "pause" : "play", w.pos);
+  });
+  ctlBtn("10 s ⏩", "On ten seconds, for everyone", () => {
+    const w = screen.where();
+    if (w) op("seek", w.pos + 10);
+  });
+  ctl.hidden = true;
+  lect.append(ctl);
   if (buttons) lect.append(buttons);
   lect.append(lectHelp);
   side.append(sideHead, notes, qa, lect);
@@ -240,9 +305,9 @@ export function mountTheatreUi(deps: {
     qa.hidden = next !== "qa";
     lect.hidden = next !== "screen";
     sideTitle.textContent = next === "notes" ? "📓 My notebook" : next === "screen" ? "📺 The big screen" : "💬 Q&A";
+    screenBtn.setAttribute("aria-pressed", String(next === "screen"));
     notesBtn.setAttribute("aria-pressed", String(next === "notes"));
     askBtn.setAttribute("aria-pressed", String(next === "qa"));
-    screenBtn.setAttribute("aria-pressed", String(next === "screen"));
     if (next === "screen") form?.querySelector("input")?.focus();
     document.body.classList.toggle("theatre-side-open", !!next);
     if (next === "notes") {
@@ -306,9 +371,16 @@ export function mountTheatreUi(deps: {
   bigBtn.addEventListener("click", () => (hasVideo ? setBig(!big) : deps.say("Nothing on the screen yet: the lecturer puts the video on.")));
   bigClose.addEventListener("click", () => setBig(false));
   notesBtn.addEventListener("click", () => setPanel(panel === "notes" ? null : "notes"));
+  screenBtn.addEventListener("click", () => setPanel(panel === "screen" ? null : "screen"));
+  // The player is under the 3D view, where a click can't reach it: a browser that waits for a click
+  // before playing (startHint) starts on any click or key on the page.
+  const nudge = (): void => {
+    if (inside && hasVideo) screen.nudge();
+  };
+  window.addEventListener("pointerdown", nudge, true);
+  window.addEventListener("keydown", nudge, true);
   askBtn.addEventListener("click", () => setPanel(panel === "qa" ? null : "qa"));
   sideClose.addEventListener("click", () => setPanel(null));
-  screenBtn.addEventListener("click", () => setPanel(panel === "screen" ? null : "screen"));
   handBtn.addEventListener("click", () => {
     if (!deps.send({ t: "action", kind: "theatre", what: "hand", up: !myHand })) deps.notSent();
   });
@@ -335,8 +407,8 @@ export function mountTheatreUi(deps: {
       bar.hidden = !on;
       frameEl.hidden = !on;
       frameEl.classList.toggle("is-lecturer", deps.isStaff());
-      screenBtn.hidden = !deps.isStaff();
       handBtn.hidden = deps.isStaff();
+      screenBtn.hidden = !deps.isStaff();
       screen.shown(on);
       if (!on) {
         setBig(false);
@@ -347,6 +419,8 @@ export function mountTheatreUi(deps: {
         unread = 0;
         hasVideo = false;
         frameEl.classList.remove("has-video");
+        deps.screenHole(false);
+        document.body.classList.remove("theatre-hole");
       }
       drawHands();
     },
@@ -355,28 +429,32 @@ export function mountTheatreUi(deps: {
       const r = canvas.getBoundingClientRect();
       const hw = SCREEN.w / 2;
       const hh = SCREEN.h / 2;
+      // Top-left, top-right, bottom-right, bottom-left: the order quadTransform wants.
       corners[0]!.set(SCREEN.x - hw, SCREEN.y + hh, SCREEN.z);
       corners[1]!.set(SCREEN.x + hw, SCREEN.y + hh, SCREEN.z);
-      corners[2]!.set(SCREEN.x - hw, SCREEN.y - hh, SCREEN.z);
-      corners[3]!.set(SCREEN.x + hw, SCREEN.y - hh, SCREEN.z);
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
+      corners[2]!.set(SCREEN.x + hw, SCREEN.y - hh, SCREEN.z);
+      corners[3]!.set(SCREEN.x - hw, SCREEN.y - hh, SCREEN.z);
+      const pts: number[] = [];
       for (const c of corners) {
         const p = c.clone().project(camera);
-        const x = r.left + ((p.x + 1) / 2) * r.width;
-        const y = r.top + ((1 - p.y) / 2) * r.height;
-        minX = Math.min(minX, x);
-        maxX = Math.max(maxX, x);
-        minY = Math.min(minY, y);
-        maxY = Math.max(maxY, y);
+        // A corner behind the camera can't be drawn in perspective: hide the player until it's back.
+        if (p.z > 1) return void (frameEl.style.visibility = "hidden");
+        pts.push(r.left + ((p.x + 1) / 2) * r.width, r.top + ((1 - p.y) / 2) * r.height);
       }
+      // The player is laid out small (under 720p: the sites pick their quality from its size, the
+      // user 11/18) and drawn onto the screen's four corners, so it sits flat on the wall and leans
+      // as you look from the side, instead of a rectangle floating in front of it.
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(PLAYER_W / dpr);
+      const h = Math.round(PLAYER_H / dpr);
+      const m = quadTransform(w, h, pts);
       const s = frameEl.style;
-      s.left = `${Math.round(minX)}px`;
-      s.top = `${Math.round(minY)}px`;
-      s.width = `${Math.round(maxX - minX)}px`;
-      s.height = `${Math.round(maxY - minY)}px`;
+      s.visibility = m ? "" : "hidden";
+      s.left = "0px";
+      s.top = "0px";
+      s.width = `${w}px`;
+      s.height = `${h}px`;
+      if (m) s.transform = m;
     },
     theatre(st) {
       qList.replaceChildren();
@@ -388,12 +466,16 @@ export function mountTheatreUi(deps: {
     video(v) {
       hasVideo = !!v;
       frameEl.classList.toggle("has-video", hasVideo);
+      deps.screenHole(hasVideo);
+      document.body.classList.toggle("theatre-hole", hasVideo);
+      ctl.hidden = !v;
+      playBtn.textContent = v?.playing ? "⏸ Pause" : "▶ Play";
       screen.video(v);
       if (!v) setBig(false);
     },
     refused(reason, v) {
       screen.video(v);
-      if (reason === "staff only") screen.note("Only the lecturer controls the screen; it keeps in step with theirs.");
+      if (reason === "staff only") deps.say("You don't have permission to play videos: only staff run the screen.");
       else if (reason === "link") screen.note("Only YouTube and Vimeo links (https) can be shown.");
       else if (reason === "slow down") deps.say("One at a time, please.");
       else if (reason === "too long") deps.say("Keep a question under 300 characters.");
@@ -414,5 +496,10 @@ export function mountTheatreUi(deps: {
       }
     },
     isTyping: () => inside && (!!panel || big),
+    lectern() {
+      if (!inside) return;
+      if (!deps.isStaff()) return deps.say("You don't have permission to play videos: only staff run the screen.");
+      setPanel(panel === "screen" ? null : "screen");
+    },
   };
 }

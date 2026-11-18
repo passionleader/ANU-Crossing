@@ -1,13 +1,16 @@
 /* The lecture theatre (theatreui.ts): the player laid over the 3D screen, its buttons along the
    bottom, and a side panel for notes or Q&A. Big view fills the window; Escape goes back. */
-#theatre-screen { position: fixed; z-index: 3; pointer-events: none; overflow: hidden; }
+/* Under the 3D view (z-index -1): the canvas's screen is a hole onto it (spaces/theatre.ts), so people
+   in front of the screen are drawn over the video. The page's own background goes while it's on. */
+#theatre-screen { position: fixed; z-index: -1; pointer-events: none; overflow: hidden; transform-origin: 0 0; }
+body.theatre-hole { background: transparent; }
 #theatre-screen[hidden] { display: none; }
 #theatre-screen #room-screen { width: 100%; height: 100%; padding: 0; gap: 0; overflow: hidden; }
 #theatre-screen .rs-video { height: 100%; gap: 0; }
 #theatre-screen .rs-stage { flex: 1; aspect-ratio: auto; border-radius: 0; background: transparent; pointer-events: auto; }
 #theatre-screen .rs-shares, #theatre-screen .rs-form, #theatre-screen .rs-buttons, #theatre-screen .rs-status { display: none; }
 #theatre-screen .rs-status-x { display: block; position: absolute; left: 8px; bottom: 8px; margin: 0; padding: 4px 10px; border-radius: 8px; background: rgba(0, 0, 0, 0.6); color: #fff; }
-#theatre-screen.is-big { inset: 12px !important; width: auto !important; height: auto !important; z-index: 32; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); background: #000; }
+#theatre-screen.is-big { inset: 12px !important; width: auto !important; height: auto !important; transform: none !important; visibility: visible !important; z-index: 32; border-radius: 12px; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); background: #000; }
 body.theatre-side-open #theatre-screen.is-big { right: calc(min(380px, 92vw) + 24px) !important; }
 .theatre-big-close { position: absolute; top: 10px; right: 10px; z-index: 3; min-height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: rgba(255, 255, 255, 0.9); color: #2a1e12; font: 700 0.9rem system-ui, sans-serif; cursor: pointer; pointer-events: auto; }
 .theatre-big-close[hidden] { display: none; }
@@ -67,3 +70,8 @@ body.theatre-big #theatre-bar { z-index: 34; }
 .theatre-qlist:empty::before { content: attr(data-empty); padding: 8px; opacity: 0.7; font-size: 0.88rem; }
 .theatre-start-hint { position: absolute; left: 50%; top: 8px; white-space: nowrap; transform: translateX(-50%); z-index: 2; margin: 0; padding: 6px 12px; max-width: calc(100% - 16px); box-sizing: border-box; border-radius: 999px; background: rgba(252, 248, 236, 0.95); color: #2a1e12; font: 700 0.85rem system-ui, sans-serif; text-align: center; pointer-events: none; }
 .theatre-start-hint[hidden] { display: none; }
+/* On the wall the player is laid out small and scaled up (theatreui.ts quadTransform), so its own
+   notes are set larger to read at the screen's size. */
+#theatre-screen:not(.is-big) .theatre-start-hint, #theatre-screen:not(.is-big) .rs-status-x { font-size: 1.3rem; }
+.theatre-ctl { display: flex; gap: 8px; }
+.theatre-ctl button { flex: 1; min-height: 44px; border: 1px solid var(--accent, #6b3f1d); border-radius: 8px; background: #fffdf7; color: var(--ink, #3b2a12); font: 700 0.9rem system-ui, sans-serif; cursor: pointer; }

@@ -11,7 +11,7 @@ import { roomShell } from "./room.ts";
 export const THEATRE_HALF = { halfX: 13, halfZ: 12 };
 /** The big screen: its centre, width and height, on the front (north) wall. */
 export const SCREEN = { x: 0, y: 4.6, z: -THEATRE_HALF.halfZ + 0.06, w: 16, h: 9 };
-/** The lectern, front left: where staff stand to lecture. */
+/** The lectern, front left: staff press E there (or use the Screen button anywhere in the theatre). */
 export const LECTERN = { x: -7.5, z: -7.6 };
 const ROWS = 5;
 const PER_ROW = 10;
@@ -19,6 +19,24 @@ const PER_ROW = 10;
 const rowZ = (r: number): number => -2.6 + r * 2.4;
 const rowY = (r: number): number => 0.35 * (r + 1);
 const STAGE_H = 0.3;
+/** Writes "nothing here" (alpha 0) where the screen is, so the page's video player behind the 3D
+ *  view shows through, and anyone standing in front of the screen is still drawn over it. */
+// Transparent (so it's drawn after the people and furniture, and its alpha isn't forced to 1),
+// but with no blending, so it writes alpha 0 instead of mixing.
+const HOLE = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, blending: THREE.NoBlending, toneMapped: false });
+
+/** While a video is on, the screen is a hole onto the player (theatreui.ts); otherwise its idle card. */
+export function theatreScreenHole(g: THREE.Object3D, on: boolean): void {
+  if (g.userData.hole === on) return;
+  g.userData.hole = on;
+  const panel = g.getObjectByName("theatre-screen") as THREE.Mesh | undefined;
+  const idle = g.getObjectByName("theatre-idle");
+  if (panel) {
+    panel.userData.card ??= panel.material;
+    panel.material = on ? HOLE : (panel.userData.card as THREE.Material);
+  }
+  if (idle) idle.visible = !on;
+}
 
 export function buildTheatre(): SpaceDef {
   const g = new THREE.Group();
@@ -115,5 +133,8 @@ export function buildTheatre(): SpaceDef {
     noNotes: true,
     light: 0.75,
     seats,
+    // The lectern opens the big screen's controls for staff (they also have a Screen button anywhere
+    // in the theatre); anyone else is told only staff can (server/theatre.ts checks it).
+    spots: [{ x: LECTERN.x, z: LECTERN.z, id: "lectern", label: "The lectern: run the big screen" }],
   };
 }

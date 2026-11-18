@@ -113,6 +113,10 @@ export function mountRoomScreen(opts: {
   reset(): void;
   /** Says something in the panel (a refusal). */
   note(msg: string): void;
+  /** Where the room's video is now (seconds) and whether it plays, or null with none. */
+  where(): { pos: number; playing: boolean } | null;
+  /** After a click on the page: starts this browser's player if the room is playing and it isn't. */
+  nudge(): void;
 } {
   const root = document.createElement("div");
   root.id = "room-screen";
@@ -438,5 +442,9 @@ export function mountRoomScreen(opts: {
       open = false;
     },
     note: say,
+    where: () => (state ? { pos: expected(), playing: state.playing } : null),
+    nudge() {
+      if (adapter && state?.playing) sync();
+    },
   };
 }

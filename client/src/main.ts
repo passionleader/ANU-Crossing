@@ -138,6 +138,7 @@ import { mountBugReport } from "./bugreport.ts";
 import { imageLink, openFile, upload } from "./uploads.ts";
 import { mountRadial } from "./radial.ts";
 import { getSpace, homeSpace, isSpaceId, meetingRoom, setClassrooms } from "./spaces/index.ts";
+import { theatreScreenHole } from "./spaces/theatre.ts";
 import { roomArrival } from "./spaces/meeting.ts";
 import { materialsOf, occludersOf } from "./spaces/occluders.ts";
 import { SUN_DIR, addLights, buildNote, enableShadows, groundAt, gust, keepIn, loadModel, nightGlow, pushOut, setWarmUp, addWarm, wind, type Door, type Seat, type SpaceDef, type SpaceId } from "./world.ts";
@@ -374,6 +375,9 @@ const theatreUi = mountTheatreUi({
   me: () => session?.name ?? "",
   say: (msg) => toast(msg),
   notSent: () => notSent(),
+  screenHole: (on) => {
+    if (space?.id === "theatre") theatreScreenHole(space.group, on);
+  },
   notebook: () =>
     session && isMember(session)
       ? {
@@ -560,7 +564,10 @@ const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 3000);
 // into coloured speckles over the paving (the user, 11/4, twice).
 const renderer = ((): THREE.WebGLRenderer => {
   try {
-    return new THREE.WebGLRenderer({ antialias: highQuality, powerPreference: "high-performance", precision: "highp" });
+    // alpha: the lecture theatre's screen is a hole onto the video player under the canvas
+    // (theatreui.ts), so people in front of it are drawn over the video. Cleared opaque below, so
+    // nothing else is see-through.
+    return new THREE.WebGLRenderer({ antialias: highQuality, alpha: true, powerPreference: "high-performance", precision: "highp" });
   } catch (err) {
     // No WebGL (hardware acceleration off, an old browser): say so on the join screen rather than
     // leave "Loading…" for ever (service check, 11/8).
@@ -582,6 +589,7 @@ renderer.setPixelRatio(RICH ? Math.min(window.devicePixelRatio, 1.5) : 1);
 let holdDraw = 0;
 // Late models and textures compile in the background before they're drawn (world.ts warm).
 setWarmUp((o) => renderer.compileAsync(o, camera, scene));
+renderer.setClearAlpha(1);
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 0.85;
 renderer.shadowMap.enabled = highQuality;
@@ -3005,6 +3013,7 @@ function interact(): void {
       if (seat >= 0) sitDown(seat);
       if (space && session && homeOwnerOf(space.id) === session.name.toLowerCase()) void myRoomUi.open("notebook");
     }
+    else if (target.id === "lectern") theatreUi.lectern();
     else if (target.id === "calendar") calendar.open();
     else if (target.id.startsWith("table:")) gameTable.open(target.id.slice(6));
     else if (target.id === "board" && space) void openBoard(space.id);
