@@ -33,6 +33,9 @@ pages at start-up), and after submission it gained a few places of its own:
 - **Pictures in Markdown**: drag, paste or add pictures into any board
   post's text (new or edited), a room's shared notes and your own notes.
 - A round joystick on phones, and COMP6300 open beside COMP8020 from the start.
+- **Terms of use** agreed in a scrollable popup before signing up or coming in
+  as a guest, and the real shops' names respelled on the signs
+  (`spec/terms.test.ts` checks the popup).
 
 <u>What to try:</u> sign up with any email (a student number works too) or
 come in as a guest, and open a second Chrome profile to be two people at

@@ -369,6 +369,12 @@
 - [x] 129. 마크다운 편집 창 어디에 놓아도 그림 드롭(텍스트 칸만이 아님), 끌고 오는 동안 "Drop the picture here", 실패는 빨간 글씨, 창 밖에 떨어뜨려도 브라우저가 앱을 벗어나지 않음 (`4e34e97`)
 - [x] 130. 마이룸 침대는 앉기가 아니라 눕기("Lie down" / "Get up", 다른 사람에게도 누운 모습) (`fef451b`)
 - [x] 131. 대강의실을 시네마룸 1~5로 나눔, 통로 문에서 선택(방별 인원 표시); 방마다 스크린·손들기·Q&A 따로; 시네마룸은 방문 도장 없음 (`bdfd3c1`)
+- [x] 132. 로그인 화면에서 "Coming up" 제거 (Campus Guide에는 그대로) (`e6d8511`)
+- [x] 133. 대강의실 Big view에서 강사의 일시정지·이동이 되돌려지던 문제: 플레이어 조작은 초당 1번만 보내고, 클릭 시작 보조는 막힌 플레이어에만 (`d94da9b`). 직접 확인은 못 함
+- [x] 134. 이용약관: "Sign up"과 "Continue as a guest" 전에 스크롤 팝업(끝까지 읽고 체크, 동의; 브라우저에 버전별로 기억, 서버엔 기록 안 함) (`6a75352`)
+- [x] 135. `osmscape-data.ts`는 ODbL임을 LICENSE·CREDITS에 명시, 크롤러 User-Agent에서 "crawler" 제거(anu.libcal.com robots.txt이 그 이름을 막음) (`8789707`)
+- [x] 136. 간판의 실존 상호 철자 변경: Suwsway, Brogga, Lacoon & Co., Lab Koffee, 퀴즈에서 Telstra 제거. 카페 가이드의 실제 목록·ANUSA·ANU Sport는 그대로 (`0631001`)
+- 공식 공개 전에 남은 것: AI 안내원이 읽는 페이지에 대한 ANU·ANUSA 허락(ANU 저작권 페이지는 개인·비상업·변경 없는 복사에 출처 표기를 허용, ANUSA·ANU Sport는 약관 없음), 개인정보 고지 문구(Privacy Act), 약관 문구를 직접 읽고 확인
 - 안 한 것·알려진 것: 로컬 서버엔 S3가 없어 실제 업로드는 라이브에서만 확인; 다이어그램 9는 아직 Fly 시절 그대로이고 123~131 없음; 눕기 전용 애니메이션 없음(팔 벌림)
 
 - [ ] 77. 앱을 계속 띄울 곳: Render 무료 / Fly 무료(개인 계정) / AWS 최저가(EC2 t4g.nano~small·Lightsail). 비교: 월 비용, SQLite 유지, WebSocket, 잠듦, HTTPS, S3·SES·secret 이전, CI. 그 전에 `/data/app.db` 백업, 코드를 개인 저장소로. 가이드 `docs/self-hosting.md`

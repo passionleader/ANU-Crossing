@@ -383,6 +383,12 @@
 - [x] 129. Dropping a picture anywhere on a Markdown editor works (not only on the text box), with "Drop the picture here" over it while a file is dragged in; a failure is said in red; a file dropped elsewhere on the page no longer opens in place of the app (`4e34e97`)
 - [x] 130. Lie down on My Room's bed instead of sitting on its edge ("Lie down" / "Get up", seen the same way by others) (`fef451b`)
 - [x] 131. The lecture theatre split into Cinema Rooms 1–5, picked at the passage's door (with how many are in each); each has its own screen, hands and Q&A; the cinema rooms give no visit stamp (`bdfd3c1`)
+- [x] 132. "Coming up" is off the join screen (the Campus Guide keeps it) (`e6d8511`)
+- [x] 133. A lecturer's pause or seek in the theatre's Big view is no longer undone: the player's own actions go out at most once a second, and the click-to-start nudge only starts a held player (`d94da9b`). Not checked by hand
+- [x] 134. Terms of use: a scrollable popup before "Sign up" and "Continue as a guest" (scroll to the end, tick, agree; remembered in the browser per version, not recorded by the server) (`6a75352`)
+- [x] 135. `osmscape-data.ts` is stated to be ODbL (LICENSE, CREDITS); the crawler's User-Agent no longer contains "crawler" (anu.libcal.com's robots.txt blocks that name) (`8789707`)
+- [x] 136. Real shops' names respelled on the signs: Suwsway, Brogga, Lacoon & Co., Lab Koffee; the quiz names no Telstra. The café guide's real list, ANUSA and ANU Sport stay (`0631001`)
+- Open before an official launch: ANU and ANUSA permission for the pages the assistants read (ANU's copyright page allows personal, non-commercial, unaltered copies with credit; ANUSA and ANU Sport state no terms), privacy notice wording (Privacy Act), and the terms text read by the owner
 - Not done / known: local servers have no S3, so real uploads are checked only on the live site; diagram 9 still shows the Fly setup and none of 123–131; the lying figure has no lying clip (arms out)
 
 - [ ] 77. Where to keep the app running: Render free / Fly free (personal account) / cheapest AWS (EC2 t4g.nano–small or Lightsail). Compare: monthly cost, SQLite kept, WebSocket, sleeping, HTTPS, moving S3, SES and secrets, CI. Before that, back up `/data/app.db` and move the code to my personal repo. Guide: `docs/self-hosting.md`
