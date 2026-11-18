@@ -158,7 +158,8 @@ From Kenney's "Interface Sounds" (`click_002`, `open_001`, `close_001`,
 Student Hub, the classrooms, the ANUSA Student Lounge, the Career Hub and
 their meeting rooms),
 `Sunlight_on_Glass.mp3` and `Where_The_Light_Settles.mp3` (Chifley Library
-and its team rooms) — Music generated with Google AI (Gemini) for this project.
+and its team rooms), `Golden_Hour_on_the_Quad.mp3` and
+`Sunlight_in_the_Grove.mp3` (My Room) — Music generated with Google AI (Gemini) for this project.
 
 `Calm_Loop.mp3` (the Poop Room, as in crit 8):
 

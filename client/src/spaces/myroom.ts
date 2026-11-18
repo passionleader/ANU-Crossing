@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { block, doorway, lightPool, mat, place, SHARED_BGM, textPlane, texMat, type Box, type SpaceDef, type SpaceId } from "../world.ts";
+import { block, doorway, lightPool, mat, place, textPlane, texMat, type Box, type SpaceDef, type SpaceId } from "../world.ts";
 import { roomShell } from "./room.ts";
 
 // My Room (the user, 11/18): every account's own room, "home-<name>", in the residence at the west
@@ -245,7 +245,8 @@ export function buildMyRoom(id: SpaceId): HomeSpace {
     ...HOME_HALF,
     background: 0xd9d4c6,
     camera: new THREE.Vector3(0, 7, 8),
-    bgm: SHARED_BGM,
+    // Its own two tracks (the user, 11/18), so your room sounds like home, not the Hub.
+    bgm: ["Golden_Hour_on_the_Quad.mp3", "Sunlight_in_the_Grove.mp3"],
     floor: "wood",
     noNotes: true,
     seats,
