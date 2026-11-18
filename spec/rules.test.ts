@@ -365,7 +365,7 @@ describe("pictures in your own notes", () => {
     };
     add("kept");
     add("dropped");
-    const saved = db.saveChat("noter", "theatre", [{ name: "Notes", text: "![a](note-file:kept)" }], "notes");
+    const saved = db.saveChat("noter", "theatre-1", [{ name: "Notes", text: "![a](note-file:kept)" }], "notes");
     db.keepNoteFiles(["kept", "dropped-not-named"], saved, "noter");
     expect(db.keepsFile("noter", "kept")).toBe(true);
     const gone = db.releaseKeptFiles();

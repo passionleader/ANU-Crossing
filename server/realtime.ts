@@ -6,9 +6,9 @@ import { MAX_CHAT } from "./accounts.ts";
 import { addStamp, isStaff, dropRoomFiles, keepRoomFiles, findByName, findByToken, followersOf, isFollowing, isMember, presenceMutualOnly, keepChatLine, lastSpot, lookOf, tagsOf, poopsNow, putPoop, restrictionOn, saveChat, saveLastSpot, seen, stampCount, type Look } from "./db.ts";
 import { removeObjects } from "./files.ts";
 import { log } from "./log.ts";
-import { ROOM_CAP, STAMPS, clampTo, homeOwner, isSpace, roomOf, spaceInfo, stampOf, type SpaceId } from "./spaces.ts";
+import { ROOM_CAP, STAMPS, clampTo, homeOwner, isSpace, isTheatre, roomOf, spaceInfo, stampOf, type SpaceId } from "./spaces.ts";
 import { forgetGuestRoom } from "./myroom.ts";
-import { THEATRE, createTheatre } from "./theatre.ts";
+import { createTheatre } from "./theatre.ts";
 import { KNOCK_GAP_MS, PRESENCE_GAP_MS, mayTell, validOfficeRoom } from "./social.ts";
 import { createTables } from "./tables.ts";
 import { VIDEO_GAP_MS, applyVideo, videoView, type VideoState } from "./video.ts";
@@ -250,14 +250,23 @@ const tables = createTables({
   tell: (name, msg) => tellPerson(name, msg),
 });
 
-// The lecture theatre (server/theatre.ts): its screen, raised hands and Q&A, for whoever is in it.
-const theatre = createTheatre({
-  people: () => inSpace(THEATRE).map((p) => ({ name: p.name, staff: !!p.staff })),
-  tell: (name, msg) => {
-    for (const [ws, p] of players) if (p.name === name && p.space === THEATRE) send(ws, msg);
-  },
-  log: (event, name, data) => log(event, { name }, { space: THEATRE, ...data }),
-});
+// The lecture theatre's cinema rooms (server/theatre.ts): each its own screen, raised hands and
+// Q&A, for whoever is in that room, made the first time someone goes in.
+const theatres = new Map<SpaceId, ReturnType<typeof createTheatre>>();
+function theatreOf(space: SpaceId): ReturnType<typeof createTheatre> {
+  let t = theatres.get(space);
+  if (!t) {
+    t = createTheatre({
+      people: () => inSpace(space).map((p) => ({ name: p.name, staff: !!p.staff })),
+      tell: (name, msg) => {
+        for (const [ws, p] of players) if (p.name === name && p.space === space) send(ws, msg);
+      },
+      log: (event, name, data) => log(event, { name }, { space, ...data }),
+    });
+    theatres.set(space, t);
+  }
+  return t;
+}
 
 const lastVideo = new Map<string, number>(); // by name, so a second tab doesn't double it
 
@@ -297,7 +306,7 @@ const ROOM_ACTIONS: Record<string, (space: SpaceId, player: Player, msg: Record<
   video: roomVideoAction,
   // Only in the theatre; it checks who may do what (theatre.ts).
   theatre: (space, player, msg) => {
-    if (space === THEATRE) theatre.action({ name: player.name, staff: !!player.staff }, msg);
+    if (isTheatre(space)) theatreOf(space).action({ name: player.name, staff: !!player.staff }, msg);
   },
 };
 
@@ -559,14 +568,14 @@ function onMessage(ws: WebSocket, raw: string): void {
       broadcastSpace(from, { t: "leave", id: player.id });
       log("enter", owners.get(ws) ?? null, { from, space: to });
       roomLeft(from, player.name, owners.get(ws) ?? null);
-      if (from === THEATRE) theatre.left(player.name);
+      if (isTheatre(from)) theatreOf(from).left(player.name);
       roomJoined(to, player.name);
       tables.left(player.name);
       if (to === "poop") send(ws, { t: "action", kind: "poops", poops: poopList() });
       if (to === "hub") sendOffice(ws);
     }
     // How the theatre stands, also on a re-sent enter (a reload lands back in it).
-    if (to === THEATRE) theatre.joined(player.name);
+    if (isTheatre(to)) theatreOf(to).joined(player.name);
     // Into a meeting room, the client waits for this before it walks in.
     const view = roomView(to);
     if (view) send(ws, { t: "action", kind: "room-open", space: to, x: player.x, z: player.z, room: view, lines: rooms.get(to)?.lines ?? [], pad: { text: rooms.get(to)?.pad ?? "", by: rooms.get(to)?.padBy ?? null }, timer: timerView(rooms.get(to)), video: videoView(rooms.get(to)?.video), players: inSpace(to) });
@@ -860,7 +869,7 @@ function onConnect(ws: WebSocket, visitor: { name: string; token: string; role: 
     }
     broadcastSpace(player.space, { t: "leave", id: player.id });
     roomLeft(player.space, player.name, visitor);
-    if (player.space === THEATRE) theatre.left(player.name);
+    if (isTheatre(player.space)) theatreOf(player.space).left(player.name);
     // Office hours end with the last tab: nobody is left to answer a knock.
     if (office.has(player.name.toLowerCase()) && ![...players.values()].some((p) => p.name.toLowerCase() === player.name.toLowerCase())) setOffice(player.name, false, null);
     tables.left(player.name);

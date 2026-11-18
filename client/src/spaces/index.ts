@@ -8,7 +8,7 @@ import { buildMeetingRoom, roomRef, type RoomRef } from "./meeting.ts";
 import { buildMyRoom, homeOwnerOf, type HomeSpace } from "./myroom.ts";
 import { buildOutdoor } from "./outdoor.ts";
 import { buildPoop } from "./poop.ts";
-import { buildTheatre } from "./theatre.ts";
+import { THEATRE_ROOMS, buildTheatre, theatreSpace } from "./theatre.ts";
 
 // Every space is built once, on first visit, and reused after that.
 // Bounds must match server/spaces.ts, which clamps positions to them.
@@ -24,7 +24,8 @@ const fixed: Record<string, () => SpaceDef> = {
   anusa: buildAnusa,
   careers: buildCareers,
   poop: buildPoop,
-  theatre: buildTheatre,
+  // The lecture theatre's five cinema rooms, the same room each (theatre.ts).
+  ...Object.fromEntries(Array.from({ length: THEATRE_ROOMS }, (_, i) => [theatreSpace(i + 1), () => buildTheatre(i + 1)])),
 };
 const built = new Map<SpaceId, SpaceDef>();
 /** Space id -> course code, for the classrooms open right now. */

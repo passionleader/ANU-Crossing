@@ -9,6 +9,16 @@ import { roomShell } from "./room.ts";
 // page (theatreui.ts, which reads SCREEN to know where it is). Same bounds as server/spaces.ts.
 
 export const THEATRE_HALF = { halfX: 13, halfZ: 12 };
+/** Five cinema rooms (the user, 11/18), "theatre-1" to "theatre-5", the same room each; the door asks which (server/spaces.ts). */
+export const THEATRE_ROOMS = 5;
+export const theatreSpace = (n: number): string => `theatre-${n}`;
+/** Which cinema room this space is (1–5), or 0. */
+export function theatreNumber(id: string | undefined): number {
+  const m = id ? /^theatre-([1-9])$/.exec(id) : null;
+  const n = m ? Number(m[1]) : 0;
+  return n <= THEATRE_ROOMS ? n : 0;
+}
+export const isTheatre = (id: string | undefined): boolean => theatreNumber(id) > 0;
 /** The big screen: its centre, width and height, on the front (north) wall. */
 export const SCREEN = { x: 0, y: 4.6, z: -THEATRE_HALF.halfZ + 0.06, w: 16, h: 9 };
 /** The lectern, front left: staff press E there (or use the Screen button anywhere in the theatre). */
@@ -38,7 +48,7 @@ export function theatreScreenHole(g: THREE.Object3D, on: boolean): void {
   if (idle) idle.visible = !on;
 }
 
-export function buildTheatre(): SpaceDef {
+export function buildTheatre(n: number): SpaceDef {
   const g = new THREE.Group();
   const colliders: Box[] = [];
   const { halfX, halfZ } = THEATRE_HALF;
@@ -55,7 +65,7 @@ export function buildTheatre(): SpaceDef {
   panel.position.set(SCREEN.x, SCREEN.y, SCREEN.z + 0.04);
   panel.name = "theatre-screen";
   g.add(frame, panel);
-  const idle = textPlane(["Lecture theatre", "the lecturer's video shows here"], 9, 2, { bg: "#1b1d24", fg: "#cfd3dc", font: 0.55 });
+  const idle = textPlane([`Cinema Room ${n}`, "the lecturer's video shows here"], 9, 2, { bg: "#1b1d24", fg: "#cfd3dc", font: 0.55 });
   idle.position.set(SCREEN.x, SCREEN.y, SCREEN.z + 0.05);
   idle.name = "theatre-idle";
   g.add(idle);
@@ -118,8 +128,8 @@ export function buildTheatre(): SpaceDef {
   doorway(g, -halfX - 0.05, halfZ - 1.6, Math.PI / 2, "Out to the north road", rowY(ROWS - 1));
 
   return {
-    id: "theatre",
-    title: "Lecture theatre",
+    id: theatreSpace(n),
+    title: `Cinema Room ${n}`,
     group: g,
     colliders,
     doors: [{ x: -halfX + 1.1, z: halfZ - 1.6, label: "Out to the north road", to: "outdoor", arrive: { x: 7, z: -37.6 } }],

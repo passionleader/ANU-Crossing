@@ -43,7 +43,7 @@ export interface Door {
   label: string;
   /** An easter egg's door: E works, but no badge or hint gives it away. */
   secret?: boolean;
-  /** The space it leads to, or "classroom" for 155's door, which asks which classroom. */
+  /** The space it leads to, or "classroom" for 155's door and "theatre" for the passage, which ask which room. */
   to: SpaceId;
   /** Where you appear on the other side. */
   arrive: { x: number; z: number };

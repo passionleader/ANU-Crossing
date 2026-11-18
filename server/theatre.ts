@@ -1,6 +1,7 @@
 import { VIDEO_GAP_MS, applyVideo, videoView, type VideoState } from "./video.ts";
 
-// The lecture theatre (the user, 11/18): a tiered room of 50 seats facing one big screen, reached
+// The lecture theatre's cinema rooms (the user, 11/18; five of them, "theatre-1" to "theatre-5", one
+// of these each, spaces.ts): a tiered room of 50 seats facing one big screen, reached
 // by the passage under the north row (client/src/spaces/theatre.ts). Staff (the admin included)
 // lecture: only they put a YouTube or Vimeo video on the screen and play, pause or move it. Everyone
 // else in the theatre watches in step, may raise a hand (the lecturers there are told at once, with
@@ -10,7 +11,6 @@ import { VIDEO_GAP_MS, applyVideo, videoView, type VideoState } from "./video.ts
 // This holds the rules; realtime.ts passes it the people and a way to tell them things, so the
 // real-time layer stays generic ("action" with a kind).
 
-export const THEATRE = "theatre";
 export const THEATRE_SEATS = 50;
 /** A question's longest text, and how often one person may ask. */
 export const ASK_MAX = 300;

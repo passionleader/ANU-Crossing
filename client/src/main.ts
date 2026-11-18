@@ -103,6 +103,7 @@ import { mountNoteComposer } from "./notecompose.ts";
 import { mountNotePanel, type CommentView } from "./notepanel.ts";
 import { mountNoteChooser, type NoteChoice } from "./notechooser.ts";
 import { mountClassPicker } from "./classpicker.ts";
+import { mountCinemaPicker } from "./cinemapicker.ts";
 import { mountWebView } from "./webview.ts";
 import { mountDogPrompt } from "./dogprompt.ts";
 import { emoteBurst } from "./emotefx.ts";
@@ -140,7 +141,7 @@ import { mountBugReport } from "./bugreport.ts";
 import { imageLink, openFile, upload } from "./uploads.ts";
 import { mountRadial } from "./radial.ts";
 import { getSpace, homeSpace, isSpaceId, meetingRoom, setClassrooms } from "./spaces/index.ts";
-import { theatreScreenHole } from "./spaces/theatre.ts";
+import { THEATRE_ROOMS, isTheatre, theatreNumber, theatreScreenHole, theatreSpace } from "./spaces/theatre.ts";
 import { roomArrival } from "./spaces/meeting.ts";
 import { materialsOf, occludersOf } from "./spaces/occluders.ts";
 import { SUN_DIR, addLights, buildNote, enableShadows, groundAt, gust, keepIn, loadModel, nightGlow, pushOut, setWarmUp, addWarm, wind, type Door, type Seat, type SpaceDef, type SpaceId } from "./world.ts";
@@ -403,7 +404,7 @@ const theatreUi = mountTheatreUi({
   say: (msg) => toast(msg),
   notSent: () => notSent(),
   screenHole: (on) => {
-    if (space?.id === "theatre") theatreScreenHole(space.group, on);
+    if (space && isTheatre(space.id)) theatreScreenHole(space.group, on);
   },
   notes: ownNotes("Notes for this lecture (Markdown).\n# Topic\n- point", "stack"),
 });
@@ -515,7 +516,9 @@ showUnread(0);
 function savedPlace(id: string): string {
   const home = homeOwnerOf(id);
   if (home) return session && home === session.name.toLowerCase() ? "My Room" : `${home}'s room`;
+  // "theatre" was the one room before there were five.
   if (id === "theatre") return "Lecture theatre";
+  if (isTheatre(id)) return `Cinema Room ${theatreNumber(id)}`;
   return meetingRoom(id)?.title ?? "A meeting room";
 }
 const mailbox = mountMailbox({
@@ -1430,6 +1433,10 @@ const picker = mountClassPicker({
     }
   },
 });
+// The passage to the lecture theatre asks which of its five cinema rooms (cinemapicker.ts).
+let cinemaArrive = { x: -10.4, z: 10.4 };
+const cinemaRooms = () => Array.from({ length: THEATRE_ROOMS }, (_, i) => ({ n: i + 1, space: theatreSpace(i + 1), online: onlineCounts[theatreSpace(i + 1)] ?? 0 }));
+const cinemaPicker = mountCinemaPicker((item) => setSpace(item.space, cinemaArrive, true));
 // COMP8020's right-hand board: the classmates' final-project apps that are up.
 const projectList = mountProjectList();
 async function openProjects(): Promise<void> {
@@ -1719,13 +1726,13 @@ mountJoinNow(document.getElementById("status-btn") ?? hudName, {
 });
 
 // When a dialog closes, hand focus back to the game view.
-for (const id of ["class-picker", "webview", "dog-prompt", "cafe-guide", "hub-calendar", "game-table", "npc-chat", "board"]) {
+for (const id of ["class-picker", "cinema-picker", "webview", "dog-prompt", "cafe-guide", "hub-calendar", "game-table", "npc-chat", "board"]) {
   const el = document.getElementById(id);
   if (el) new MutationObserver(() => el.hidden && playing && stage.focus()).observe(el, { attributes: true, attributeFilter: ["hidden"] });
 }
 
 const busy = (): boolean =>
-  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen() || myRoomUi.isOpen() || !guestRoomNotice.hidden || theatreUi.isTyping();
+  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || cinemaPicker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen() || myRoomUi.isOpen() || !guestRoomNotice.hidden || theatreUi.isTyping();
 const keyGuide = mountKeyGuide();
 installDialogKeys();
 
@@ -2006,10 +2013,11 @@ function setSpace(id: SpaceId, at: { x: number; z: number }, tell: boolean): voi
     window.setTimeout(() => fade.classList.remove("on"), 260);
   }
   mySeat = null;
-  const wasTheatre = space?.id === "theatre";
+  const wasTheatre = isTheatre(space?.id);
   space = getSpace(id);
   // The theatre's screen and buttons come and go with it (the server sends how it stands on "enter").
-  if (wasTheatre !== (id === "theatre")) theatreUi.shown(id === "theatre" && playing);
+  // Straight from one cinema room to another can't happen (each one's door goes outside).
+  if (wasTheatre !== isTheatre(id)) theatreUi.shown(isTheatre(id) && playing);
   doorLabels.length = 0;
   space.group.traverse((o) => {
     if (o instanceof CSS2DObject && o.element.classList.contains("door-label")) doorLabels.push(o);
@@ -2471,6 +2479,7 @@ function goOnline(token: string): void {
       onlineCounts = counts;
       showOnline();
       if (picker.isOpen()) picker.update(withOnline(classroomList));
+      if (cinemaPicker.isOpen()) cinemaPicker.update(cinemaRooms());
     },
     moved(to, x, z, players) {
       toast("That classroom was closed. You're back outside.");
@@ -2508,7 +2517,7 @@ function goOnline(token: string): void {
       homeSpace(space?.id)?.setLayout(layout);
     },
     theatre(m) {
-      if (space?.id !== "theatre") return;
+      if (!isTheatre(space?.id)) return;
       if (m.kind === "theatre") theatreUi.theatre(m as unknown as { video: VideoView | null; hands: string[]; questions: Question[] });
       else if (m.kind === "theatre-video") theatreUi.video((m.video as VideoView | null) ?? null);
       else if (m.kind === "theatre-refused") theatreUi.refused(String(m.reason), (m.video as VideoView | null) ?? null);
@@ -3019,7 +3028,7 @@ function interact(): void {
   if (target.kind === "seat") return sitDown(target.index);
   // Anything but a door opens a window: a soft "open" sound (the dog barks instead).
   if (target.kind !== "door" && !(target.kind === "spot" && target.id === "dog")) sfx("open");
-  if (target.kind === "door" && space?.id === "theatre") {
+  if (target.kind === "door" && isTheatre(space?.id)) {
     // Out of the theatre with unsaved notes: asked first (save, clear, or stay).
     stopMoving();
     const door = target.door;
@@ -3029,7 +3038,12 @@ function interact(): void {
   if (target.kind === "door") {
     // The residence's door: your own room, whoever you are.
     if (target.door.to === "home") return goHome();
-    if (target.door.to === "classroom") {
+    if (target.door.to === "theatre") {
+      stopMoving();
+      const arrive = target.door.arrive;
+      cinemaArrive = arrive;
+      cinemaPicker.open(cinemaRooms());
+    } else if (target.door.to === "classroom") {
       stopMoving();
       if (classroomList.length === 0) void loadClassrooms();
       picker.open(withOnline(classroomList), isStaff(session));

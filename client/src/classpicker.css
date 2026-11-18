@@ -1,7 +1,8 @@
 /* The classroom picker: a modal in the same style as the settings dialog and
    the note chooser. */
 
-#class-picker {
+#class-picker,
+#cinema-picker {
   position: fixed;
   inset: 0;
   z-index: 30;
@@ -11,7 +12,8 @@
   background: rgba(20, 20, 20, 0.45);
 }
 
-#class-picker[hidden] {
+#class-picker[hidden],
+#cinema-picker[hidden] {
   display: none;
 }
 
@@ -214,3 +216,4 @@
 }
 .class-staff-only { margin: 8px 0 0; font-size: 0.85rem; opacity: 0.8; }
 .class-staff-only[hidden] { display: none; }
+.cinema-note { margin: 0 0 12px !important; line-height: 1.35; }

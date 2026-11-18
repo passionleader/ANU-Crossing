@@ -3,16 +3,17 @@ import { closeAll, connect, staffMember, visitor, type Msg } from "./helpers.ts"
 
 // The lecture theatre (server/theatre.ts, the user 11/18): only staff put a video on its big screen
 // and play, move or caption it (everyone's player shows the captions they pick); anyone in the theatre raises a hand (the lecturers there are told who) and
-// asks in its Q&A (everyone there reads it). It lives in memory while someone is in it.
+// asks in its Q&A (everyone there reads it). It lives in memory while someone is in it. There are five
+// cinema rooms, "theatre-1" to "theatre-5" (the user, 11/18), each with its own screen, hands and Q&A.
 
 afterEach(closeAll);
 
 const act = (kind: string) => (m: Msg) => m.t === "action" && m.kind === kind;
 
-async function inTheatre(who: { token: string }) {
+async function inTheatre(who: { token: string }, room = 1) {
   const s = await connect(who.token);
   await s.next((m) => m.t === "welcome");
-  s.send({ t: "enter", space: "theatre", x: 0, z: 8 });
+  s.send({ t: "enter", space: `theatre-${room}`, x: 0, z: 8 });
   await s.next(act("theatre"));
   return s;
 }
@@ -68,5 +69,33 @@ describe("the lecture theatre", () => {
     s.send({ t: "action", kind: "theatre", what: "ask", text: "first" });
     s.send({ t: "action", kind: "theatre", what: "ask", text: "second" });
     await expect(s.next((m) => m.t === "action" && m.kind === "theatre-refused" && m.reason === "slow down")).resolves.toBeTruthy();
+  });
+
+  it("keeps each cinema room's screen, hands and questions to the people in it", async () => {
+    const lecturer = await staffMember();
+    const here = await visitor();
+    const there = await visitor();
+    const sl = await inTheatre(lecturer, 2);
+    const sh = await inTheatre(here, 2);
+    const st = await inTheatre(there, 3);
+    sl.send({ t: "action", kind: "theatre", what: "video", op: "set", url: "https://youtu.be/jNQXAC9IVRw" });
+    await expect(sh.next((m) => m.t === "action" && m.kind === "theatre-video" && !!m.video)).resolves.toBeTruthy();
+    sh.send({ t: "action", kind: "theatre", what: "hand", up: true });
+    await expect(sl.next((m) => m.t === "action" && m.kind === "theatre-hand-up")).resolves.toBeTruthy();
+    // Room 3 hears none of it, and its screen is still empty for someone coming in.
+    expect(await st.sees((m) => m.t === "action" && (m.kind === "theatre-video" || m.kind === "theatre-hand-up" || m.kind === "theatre-hands"), 400)).toBe(false);
+    const late = await inTheatre(await visitor(), 3);
+    expect((await late.next((m) => m.t === "action" && m.kind === "theatre")).video).toBeNull();
+  }, 12_000);
+
+  it("has five cinema rooms and no sixth, nor the single theatre there was before", async () => {
+    const s = await connect((await visitor()).token);
+    await s.next((m) => m.t === "welcome");
+    s.send({ t: "enter", space: "theatre-5", x: 0, z: 8 });
+    await expect(s.next((m) => m.t === "action" && m.kind === "theatre")).resolves.toBeTruthy();
+    for (const space of ["theatre-6", "theatre"]) {
+      s.send({ t: "enter", space, x: 0, z: 8 });
+      expect(await s.seesNew((m) => m.t === "action" && m.kind === "theatre", 400)).toBe(false);
+    }
   });
 });

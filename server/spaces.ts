@@ -49,9 +49,17 @@ export const SPACES: Record<string, Space> = {
   poop: { label: "a small room", halfX: 9, halfZ: 6.75, spawn: { x: 6, z: -4.5 } },
   // In the O'Donoghue centre's ground floor, across the north road (plan 111; client/src/spaces/careers.ts).
   careers: { label: "Career Hub", halfX: 15, halfZ: 10, spawn: { x: 0, z: 7.6 } },
-  // The lecture theatre (the user, 11/18), through the passage under the north row (client/src/spaces/theatre.ts).
-  theatre: { label: "Lecture theatre", halfX: 13, halfZ: 12, spawn: { x: 0, z: 10.5 } },
+  // The lecture theatre's five cinema rooms (the user, 11/18), through the passage under the north row:
+  // the door asks which one (client/src/spaces/theatre.ts). Each is a space of its own, so its screen,
+  // hands and questions stay in it (server/theatre.ts).
+  ...Object.fromEntries(
+    Array.from({ length: 5 }, (_, i) => [`theatre-${i + 1}`, { label: `Cinema Room ${i + 1}`, halfX: 13, halfZ: 12, spawn: { x: 0, z: 10.5 } }]),
+  ),
 };
+
+/** The lecture theatre's cinema rooms, "theatre-1" to "theatre-5". */
+export const THEATRE_ROOMS = 5;
+export const isTheatre = (id: unknown): id is SpaceId => typeof id === "string" && /^theatre-[1-9]$/.test(id) && Object.hasOwn(SPACES, id);
 
 /** Every classroom's bounds (client/src/spaces/classroom.ts). */
 export const CLASSROOM: Omit<Space, "label"> = { halfX: 10, halfZ: 8, spawn: { x: 0, z: 5.5 } };
@@ -189,6 +197,8 @@ export const SECRET_STAMP_LABEL = "A secret place";
 
 /** The stamp that coming into `space` earns, or null (a counselling or interview room earns none). */
 export function stampOf(space: SpaceId): string | null {
+  // The cinema rooms aren't one of the eight (STAMPS): none, rather than a ninth of eight.
+  if (isTheatre(space)) return null;
   if (Object.hasOwn(SPACES, space)) return space;
   if (isClassroom(space)) return "classroom";
   return roomOf(space)?.kind === "team" ? "team" : null;
