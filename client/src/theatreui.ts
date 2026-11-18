@@ -2,6 +2,7 @@ import "./theatreui.css";
 import * as THREE from "three";
 import { renderMarkdown } from "./markdown.ts";
 import { mountRoomScreen, type VideoView } from "./roomscreen.ts";
+import { handChime } from "./sfx.ts";
 import { SCREEN } from "./spaces/theatre.ts";
 
 // The lecture theatre's screen and buttons (the user, 11/18). The lecturer's video (server/theatre.ts)
@@ -82,6 +83,11 @@ export function mountTheatreUi(deps: {
     onShare: () => undefined,
     onNotSent: deps.notSent,
     onStuck: (on) => void (startHint.hidden = !on),
+    // Only staff in Big view steer the room from the player itself (play, pause, seek, captions);
+    // on the wall it's out of reach, and anyone else's player just follows.
+    mayControl: () => deps.isStaff() && big,
+    onCaptions: (lang) => void (deps.send({ t: "action", kind: "theatre", what: "video", op: "cc", lang }) || deps.notSent()),
+    theatre: true,
   });
   const frameEl = document.createElement("div");
   frameEl.id = "theatre-screen";
@@ -182,39 +188,28 @@ export function mountTheatreUi(deps: {
   lect.className = "theatre-lect";
   const lectHelp = document.createElement("p");
   lectHelp.className = "settings-note";
-  lectHelp.textContent = "Paste a YouTube or Vimeo link: it plays on the big screen for everyone here. Play, pause and skip with the buttons above (or the player itself in Big view); everyone follows you. Only staff can do this.";
+  lectHelp.textContent = "Paste a YouTube or Vimeo link: it plays on the big screen for everyone here. Only staff can do this.";
   const form = screen.el.querySelector<HTMLFormElement>(".rs-form");
   const buttons = screen.el.querySelector<HTMLElement>(".rs-buttons");
   const lectStatus = screen.el.querySelector<HTMLElement>(".rs-status");
   if (form) lect.append(form);
   if (lectStatus) lect.append(lectStatus);
-  // Play, pause and skip for everyone: the player itself sits under the 3D view, out of reach of a click.
+  // Play, pause, skip and captions are the player's own, in Big view (the user, 11/18): on the wall
+  // the player is under the 3D view, out of reach, so the lecturer is sent there.
   const ctl = document.createElement("div");
   ctl.className = "theatre-ctl";
-  const ctlBtn = (label: string, title: string, run: () => void): HTMLButtonElement => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.textContent = label;
-    b.title = title;
-    b.addEventListener("click", run);
-    ctl.append(b);
-    return b;
-  };
-  const op = (name: string, pos: number): void => {
-    if (!deps.send({ t: "action", kind: "theatre", what: "video", op: name, pos: Math.max(0, pos) })) deps.notSent();
-  };
-  ctlBtn("⏪ 10 s", "Back ten seconds, for everyone", () => {
-    const w = screen.where();
-    if (w) op("seek", w.pos - 10);
+  const ctlNote = document.createElement("p");
+  ctlNote.className = "settings-note";
+  ctlNote.textContent = "Play, pause, skip and captions: do them on the video in full screen. Everyone follows, captions included.";
+  const fullBtn = document.createElement("button");
+  fullBtn.type = "button";
+  fullBtn.className = "room-primary";
+  fullBtn.textContent = "⛶ Switch the video to full screen";
+  fullBtn.addEventListener("click", () => {
+    setPanel(null);
+    setBig(true);
   });
-  const playBtn = ctlBtn("▶ Play", "Play or pause, for everyone", () => {
-    const w = screen.where();
-    if (w) op(w.playing ? "pause" : "play", w.pos);
-  });
-  ctlBtn("10 s ⏩", "On ten seconds, for everyone", () => {
-    const w = screen.where();
-    if (w) op("seek", w.pos + 10);
-  });
+  ctl.append(ctlNote, fullBtn);
   ctl.hidden = true;
   lect.append(ctl);
   if (buttons) lect.append(buttons);
@@ -469,7 +464,6 @@ export function mountTheatreUi(deps: {
       deps.screenHole(hasVideo);
       document.body.classList.toggle("theatre-hole", hasVideo);
       ctl.hidden = !v;
-      playBtn.textContent = v?.playing ? "⏸ Pause" : "▶ Play";
       screen.video(v);
       if (!v) setBig(false);
     },
@@ -486,7 +480,10 @@ export function mountTheatreUi(deps: {
     },
     handUp(name) {
       // A lecturer is told the moment a hand goes up.
-      if (deps.isStaff()) deps.say(`✋ ${name} raised a hand`);
+      if (deps.isStaff()) {
+        deps.say(`✋ ${name} raised a hand`);
+        handChime();
+      }
     },
     ask(q, staff) {
       addQuestion(q, staff);

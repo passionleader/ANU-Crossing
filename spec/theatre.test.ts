@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { closeAll, connect, staffMember, visitor, type Msg } from "./helpers.ts";
 
 // The lecture theatre (server/theatre.ts, the user 11/18): only staff put a video on its big screen
-// and play or move it; anyone in the theatre raises a hand (the lecturers there are told who) and
+// and play, move or caption it (everyone's player shows the captions they pick); anyone in the theatre raises a hand (the lecturers there are told who) and
 // asks in its Q&A (everyone there reads it). It lives in memory while someone is in it.
 
 afterEach(closeAll);
@@ -30,6 +30,13 @@ describe("the lecture theatre", () => {
     sl.send({ t: "action", kind: "theatre", what: "video", op: "set", url: "https://youtu.be/jNQXAC9IVRw" });
     const shown = await ss.next((m) => m.t === "action" && m.kind === "theatre-video" && !!m.video);
     expect((shown.video as { id: string; playing: boolean }).id).toBe("jNQXAC9IVRw");
+    // The captions the lecturer picks go to everyone (the user, 11/18); a code that isn't one is refused.
+    await new Promise((r) => setTimeout(r, 1050));
+    sl.send({ t: "action", kind: "theatre", what: "video", op: "cc", lang: "ko" });
+    await expect(ss.next((m) => m.t === "action" && m.kind === "theatre-video" && (m.video as { cc?: string } | null)?.cc === "ko")).resolves.toBeTruthy();
+    await new Promise((r) => setTimeout(r, 1050));
+    sl.send({ t: "action", kind: "theatre", what: "video", op: "cc", lang: "<b>" });
+    await expect(sl.next((m) => m.t === "action" && m.kind === "theatre-refused" && m.reason === "captions")).resolves.toBeTruthy();
     // Not a YouTube or Vimeo address: refused, even for staff.
     await new Promise((r) => setTimeout(r, 1050));
     sl.send({ t: "action", kind: "theatre", what: "video", op: "set", url: "https://example.com/x" });

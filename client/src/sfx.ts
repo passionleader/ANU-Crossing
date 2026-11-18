@@ -167,6 +167,14 @@ export function ding(): void {
   blow(s.c, 784, now, 0.12, s.level);
   blow(s.c, 1175, now + 0.09, 0.25, s.level);
 }
+/** A hand went up in the lecture theatre (the lecturer hears it): a soft two-note bell, falling. */
+export function handChime(): void {
+  const s = synth();
+  if (!s) return;
+  const now = s.c.currentTime;
+  blow(s.c, 1047, now, 0.35, s.level * 1.2);
+  blow(s.c, 784, now + 0.16, 0.6, s.level * 1.2);
+}
 /** All the quests done: a little fanfare (G C E G, the last held, with a chord under it). */
 export function fanfare(): void {
   const s = synth();

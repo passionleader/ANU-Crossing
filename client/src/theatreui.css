@@ -73,5 +73,6 @@ body.theatre-big #theatre-bar { z-index: 34; }
 /* On the wall the player is laid out small and scaled up (theatreui.ts quadTransform), so its own
    notes are set larger to read at the screen's size. */
 #theatre-screen:not(.is-big) .theatre-start-hint, #theatre-screen:not(.is-big) .rs-status-x { font-size: 1.3rem; }
-.theatre-ctl { display: flex; gap: 8px; }
-.theatre-ctl button { flex: 1; min-height: 44px; border: 1px solid var(--accent, #6b3f1d); border-radius: 8px; background: #fffdf7; color: var(--ink, #3b2a12); font: 700 0.9rem system-ui, sans-serif; cursor: pointer; }
+.theatre-ctl { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 10px; background: #fff4e0; }
+.theatre-ctl .settings-note { margin: 0; }
+.theatre-ctl button { min-height: 44px; border-radius: 8px; }
