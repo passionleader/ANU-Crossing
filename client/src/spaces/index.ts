@@ -5,6 +5,7 @@ import { buildClassroom } from "./classroom.ts";
 import { buildHub } from "./hub.ts";
 import { buildLibrary } from "./library.ts";
 import { buildMeetingRoom, roomRef, type RoomRef } from "./meeting.ts";
+import { buildMyRoom, homeOwnerOf, type HomeSpace } from "./myroom.ts";
 import { buildOutdoor } from "./outdoor.ts";
 import { buildPoop } from "./poop.ts";
 
@@ -37,7 +38,7 @@ export function getSpace(id: SpaceId): SpaceDef {
   if (!def) {
     const code = classrooms.get(id);
     const room = meetingRoom(id);
-    def = code ? buildClassroom(id, code) : room ? buildMeetingRoom(id, room) : fixed[id]!();
+    def = homeOwnerOf(id) ? buildMyRoom(id) : code ? buildClassroom(id, code) : room ? buildMeetingRoom(id, room) : fixed[id]!();
     built.set(id, def);
   }
   return def;
@@ -48,3 +49,6 @@ export const meetingRoom = (id: SpaceId): RoomRef | undefined => roomRef(id, (sp
 
 export const isSpaceId = (s: unknown): s is SpaceId =>
   typeof s === "string" && (Object.hasOwn(fixed, s) || classrooms.has(s) || meetingRoom(s) !== undefined);
+
+/** Someone's own room (spaces/myroom.ts), if this space is one. */
+export const homeSpace = (id: SpaceId | undefined): HomeSpace | null => (id && homeOwnerOf(id) ? (getSpace(id) as HomeSpace) : null);

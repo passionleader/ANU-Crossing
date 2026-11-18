@@ -1,5 +1,7 @@
 import type { Look } from "./lookpicker.ts";
 import type { SpaceId } from "./world.ts";
+import type { Layout } from "./spaces/myroom.ts";
+import type { MyRoomData } from "./myroomui.ts";
 
 // Thin wrapper around the server's HTTP API (server/main.ts). Live movement,
 // chat and emotes go over the socket instead (net.ts).
@@ -369,3 +371,9 @@ export interface StampCard {
 }
 /** Without a token (the join screen) it is an empty card, so the look window still knows what is locked. */
 export const getStamps = (token?: string): Promise<StampCard> => request<StampCard>("/api/stamps", "POST", { token });
+
+// --- My Room (server/myroom.ts) -------------------------------------------------------
+export const getMyRoom = (token: string): Promise<MyRoomData & { space: string }> => request(`/api/myroom?token=${encodeURIComponent(token)}`);
+/** The furniture of the room we're standing in (someone else's, as their visitor). */
+export const getRoomLayout = (token: string): Promise<{ layout: Layout; owner?: string }> => request(`/api/myroom/layout?token=${encodeURIComponent(token)}`);
+export const putMyRoom = (token: string, part: Partial<Pick<MyRoomData, "notebook" | "calendar" | "layout">>): Promise<{ ok: true }> => request("/api/myroom", "PUT", { token, ...part });

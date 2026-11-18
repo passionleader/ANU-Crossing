@@ -135,7 +135,10 @@ import {
   setClassroomLink,
   type Post,
   type Visitor,
+  myRoomOf,
+  saveMyRoom,
 } from "./db.ts";
+import { CAL_MAX, DEFAULT_LAYOUT, calEntry, cleanLayout, guestRoom, notebookError, type CalEntry, type Layout } from "./myroom.ts";
 import { browserTag, KEPT, keepIn, log } from "./log.ts";
 import { attachRealtime, broadcastAll, broadcastSpace, evictSpace, kick, livePlayer, noticeRestriction, tellPerson, roomSessionOf, roomShare, setLook, setTags } from "./realtime.ts";
 import { S3Failure, arrivedSize, cleanName, downloadLink, fileError, isImage, keyFor, removeObjects, s3Message, s3Ready, typeOf, uploadLink, type FileKind } from "./files.ts";
@@ -143,7 +146,7 @@ import { COURSE_TAGS, INTEREST_TAGS, MAX_FOLLOWS, MAX_TAGS, validTags } from "./
 import { sketchRoutes } from "./sketch/routes.ts";
 import { startWeather, weatherForClient } from "./weather.ts";
 import { boardOf, expiringBoards, maySeePost as maySeeUnhiddenPost, mayPostIn, spaceOfBoard, tabOf } from "./boards.ts";
-import { ARRIVAL, CLASSROOM_CODE, FIRST_SPACE, OLD_COMMON, SECRET_STAMP_LABEL, SPACES, STAMPS, clampTo, classroomSpace, isSpace, noteSpotError, roomOf, spaceInfo, teamRoomsOf } from "./spaces.ts";
+import { ARRIVAL, CLASSROOM_CODE, FIRST_SPACE, OLD_COMMON, SECRET_STAMP_LABEL, SPACES, STAMPS, clampTo, classroomSpace, homeOf, homeOwner, isSpace, noteSpotError, roomOf, spaceInfo, teamRoomsOf } from "./spaces.ts";
 import { EVENT_AHEAD_DAYS, EVENT_MAX_MINUTES, EVENT_MIN_MINUTES, canberraToEpoch, eventTitle } from "./events.ts";
 
 // Lines the admin can read back for seven days go into SQLite as well.
@@ -1872,6 +1875,84 @@ const eventSpaces = (): { id: string; label: string }[] =>
   [...Object.keys(SPACES), ...classroomList().map((r) => classroomSpace(r.code))].filter((id) => id !== "poop").map((id) => ({ id, label: spaceInfo(id)!.label }));
 
 const eventView = (e: { id: number; author: string; space: string; title: string; start: number; end: number }) => ({ ...e, spaceLabel: spaceInfo(e.space)?.label ?? e.space });
+
+// --- My Room (server/myroom.ts) --------------------------------------------------------
+// Only the owner reads or changes their notebook and calendar. The layout is also given to anyone
+// standing in the room right now (they see the furniture), and a change is sent to them at once.
+// A guest's room is kept in memory only (myroom.ts guestRoom), until they leave it.
+const myRoomData = (v: Visitor): { notebook: string; calendar: CalEntry[]; layout: Layout } => {
+  if (!isMember(v)) return guestRoom(v.name);
+  const row = myRoomOf(v.name);
+  const parse = <T,>(s: string | null | undefined, fallback: T): T => {
+    try {
+      return s ? (JSON.parse(s) as T) : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+  return { notebook: row?.notebook ?? "", calendar: parse(row?.calendar, [] as CalEntry[]), layout: parse(row?.layout, structuredClone(DEFAULT_LAYOUT)) };
+};
+const lastMyRoomWrite = new Map<string, number>();
+/** One save every half second per person (typing is debounced in the browser; this only stops a flood). */
+const myRoomTooSoon = (name: string): boolean => {
+  const now = Date.now();
+  if (now - (lastMyRoomWrite.get(name) ?? 0) < 500) return true;
+  lastMyRoomWrite.set(name, now);
+  return false;
+};
+
+app.get("/api/myroom", (c) => {
+  const v = findByToken(c.req.query("token") ?? "");
+  if (!v) return c.json({ error: "Join first." }, 401);
+  return c.json({ ...myRoomData(v), guest: !isMember(v), space: homeOf(v.name) });
+});
+
+/** The furniture of the room someone is standing in (visitors see it; the owner's notebook stays theirs). */
+app.get("/api/myroom/layout", (c) => {
+  const v = findByToken(c.req.query("token") ?? "");
+  if (!v) return c.json({ error: "Join first." }, 401);
+  const at = livePlayer(v.name)?.space;
+  const owner = homeOwner(at);
+  if (!owner) return c.json({ error: "Only inside someone's room." }, 403);
+  const ownerV = findByName(owner);
+  if (!ownerV) return c.json({ layout: DEFAULT_LAYOUT });
+  return c.json({ layout: myRoomData(ownerV).layout, owner: ownerV.name });
+});
+
+app.put("/api/myroom", async (c) => {
+  const b = await body(c);
+  const v = who(b);
+  if (!v) return c.json({ error: "Join first." }, 401);
+  if (myRoomTooSoon(v.name)) return c.json({ error: "One save at a time, please." }, 429);
+  const member = isMember(v);
+  if (b.notebook !== undefined) {
+    const bad = notebookError(b.notebook);
+    if (bad) return c.json({ error: bad }, 400);
+    if (member) saveMyRoom(v.name, "notebook", b.notebook as string);
+    else guestRoom(v.name).notebook = b.notebook as string;
+  }
+  if (b.calendar !== undefined) {
+    if (!Array.isArray(b.calendar) || b.calendar.length > CAL_MAX) return c.json({ error: `A calendar holds up to ${CAL_MAX} events.` }, 400);
+    const entries: CalEntry[] = [];
+    for (const raw of b.calendar) {
+      const keep = typeof (raw as { id?: unknown })?.id === "string" && /^[A-Za-z0-9-]{1,40}$/.test((raw as { id: string }).id) ? (raw as { id: string }).id : randomUUID();
+      const r = calEntry(raw, keep);
+      if (!r.ok) return c.json({ error: r.error }, 400);
+      entries.push(r.entry);
+    }
+    if (member) saveMyRoom(v.name, "calendar", JSON.stringify(entries));
+    else guestRoom(v.name).calendar = entries;
+  }
+  if (b.layout !== undefined) {
+    const layout = cleanLayout(b.layout);
+    if (!layout) return c.json({ error: "That isn't a room layout." }, 400);
+    if (member) saveMyRoom(v.name, "layout", JSON.stringify(layout));
+    else guestRoom(v.name).layout = layout;
+    // Whoever is in the room now sees the furniture move.
+    broadcastSpace(homeOf(v.name), { t: "action", kind: "home-layout", layout });
+  }
+  return c.json({ ok: true });
+});
 
 app.get("/api/events", (c) => c.json({ now: Math.floor(Date.now() / 1000), events: eventsNow().map(eventView), spaces: eventSpaces() }));
 

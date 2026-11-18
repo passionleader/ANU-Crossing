@@ -22,7 +22,7 @@ import { ding, sfx } from "./sfx.ts";
 
 export interface RoomInfo {
   title: string;
-  kind: "counselling" | "team";
+  kind: "counselling" | "team" | "home";
   members: string[];
   cap: number;
   /** Counselling only: marked "host" in the member list. */
@@ -82,6 +82,10 @@ export function mountRoomPanel(opts: {
   onSaved(): void;
   /** Says something over the window, for when a focus or break phase ends (the timer is only on this screen). */
   onNotice(msg: string): void;
+  /** My Room, its owner only: the notebook, the calendar and the furniture (myroomui.ts). */
+  onHome(what: "notebook" | "calendar" | "furniture"): void;
+  /** Whether the room shown is the viewer's own (My Room's own items show only then). */
+  isMine(): boolean;
   maxLength: number;
 }): {
   open(info: RoomInfo, history: RoomLine[], timer?: RoomTimer | null): void;
@@ -228,6 +232,12 @@ export function mountRoomPanel(opts: {
     items.append(b);
     return b;
   }
+  // My Room's own things, first on its owner's menu (the user, 11/18).
+  const homeItems = [
+    addItem("📓", "My notebook", "Your own Markdown notes (only you see them)", () => opts.onHome("notebook")),
+    addItem("📅", "My calendar", "Your dates, and ANU's academic dates you copy in", () => opts.onHome("calendar")),
+    addItem("🪑", "Arrange furniture", "Move, turn and recolour the furniture, the walls and the floor", () => opts.onHome("furniture")),
+  ];
   const chatItem = addItem(
     "💬",
     "Chat",
@@ -499,19 +509,21 @@ export function mountRoomPanel(opts: {
     members.replaceChildren(
       ...info.members.map((name) => {
         const li = document.createElement("li");
-        li.className = "room-chip" + (info.host === name ? " is-host" : "") + (speaking.has(name) ? " is-talking" : "");
+        const isHost = !!info.host && info.host.toLowerCase() === name.toLowerCase();
+        li.className = "room-chip" + (isHost ? " is-host" : "") + (speaking.has(name) ? " is-talking" : "");
         li.dataset.name = name;
         li.append(document.createTextNode(name));
-        if (info.host === name) {
+        if (isHost) {
           const tag = document.createElement("small");
-          tag.textContent = "host";
+          tag.textContent = info.kind === "home" ? "owner" : "host";
           li.append(tag);
         }
         return li;
       }),
     );
-    const counselling = info.kind === "counselling";
+    const counselling = info.kind === "counselling" || info.kind === "home";
     invite.hidden = !counselling;
+    for (const b of homeItems) b.hidden = !(info.kind === "home" && opts.isMine());
     const waiting = counselling ? (info.invited ?? []) : [];
     invitedNote.hidden = waiting.length === 0;
     invitedNote.textContent = waiting.length

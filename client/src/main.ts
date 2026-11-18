@@ -77,7 +77,12 @@ import {
   type Comment,
   type Note,
   type Session,
+  getMyRoom,
+  getRoomLayout,
+  putMyRoom,
 } from "./api.ts";
+import { mountMyRoomUi } from "./myroomui.ts";
+import { homeOwnerOf, type HomeSpace, type Layout } from "./spaces/myroom.ts";
 import { mountChat } from "./chatui.ts";
 import { mountJoinNow } from "./joinnow.ts";
 import { mountEventBanner, mountEvents, onEventsChanged, onNowSpaces, refreshEvents } from "./events.ts";
@@ -131,7 +136,7 @@ import { mountLinkEditor } from "./linkeditor.ts";
 import { mountBugReport } from "./bugreport.ts";
 import { imageLink, openFile, upload } from "./uploads.ts";
 import { mountRadial } from "./radial.ts";
-import { getSpace, isSpaceId, meetingRoom, setClassrooms } from "./spaces/index.ts";
+import { getSpace, homeSpace, isSpaceId, meetingRoom, setClassrooms } from "./spaces/index.ts";
 import { roomArrival } from "./spaces/meeting.ts";
 import { materialsOf, occludersOf } from "./spaces/occluders.ts";
 import { SUN_DIR, addLights, buildNote, enableShadows, groundAt, gust, keepIn, loadModel, nightGlow, pushOut, setWarmUp, addWarm, wind, type Door, type Seat, type SpaceDef, type SpaceId } from "./world.ts";
@@ -356,6 +361,90 @@ document.body.append(guideBtn);
 // The tour and the quests never show together: the quests wait while the tour is up.
 const guide = mountGuide({ onTourDone: () => quests.show(playing), onTourStart: () => quests.show(false) });
 guideBtn.addEventListener("click", () => guide.open());
+
+// --- My Room (the user, 11/18) -------------------------------------------------------------
+// Everyone's own room (spaces/myroom.ts, server/myroom.ts): a round 🏠 button left of the guide takes
+// you there from anywhere (back out, you're by the residence's door on the north road, which also
+// leads in). Inside, the room window has its owner's notebook, calendar and furniture editor.
+const myRoomBtn = document.createElement("button");
+myRoomBtn.type = "button";
+myRoomBtn.id = "myroom-btn";
+myRoomBtn.className = "round-btn";
+myRoomBtn.textContent = "🏠";
+myRoomBtn.title = "My Room";
+myRoomBtn.setAttribute("aria-label", "Go to My Room");
+myRoomBtn.hidden = true;
+document.body.append(myRoomBtn);
+const myRoomUi = mountMyRoomUi({
+  async load() {
+    if (!session) return null;
+    try {
+      return await getMyRoom(session.token);
+    } catch {
+      return null;
+    }
+  },
+  async save(part) {
+    if (!session) return "Join first.";
+    try {
+      await putMyRoom(session.token, part);
+      return null;
+    } catch (e) {
+      return e instanceof ApiError ? e.message : "Couldn't save. Try again.";
+    }
+  },
+  preview(layout) {
+    homeSpace(space?.id)?.setLayout(layout);
+  },
+  say: (msg) => toast(msg),
+});
+/** Walks into your own room (the server lets its owner in, always). */
+function goHome(): void {
+  if (!session || !net) return;
+  const own = `home-${session.name.toLowerCase()}`;
+  if (space?.id === own) return void roomPanel.show("menu");
+  stopMoving();
+  net.enter(own, -3.4, 3.4);
+}
+myRoomBtn.addEventListener("click", goHome);
+/** Coming into someone's room: lay out their furniture (yours from your own data, theirs as a visitor). */
+async function furnishHome(id: SpaceId): Promise<void> {
+  const room = homeSpace(id);
+  if (!room || !session) return;
+  const mine = homeOwnerOf(id) === session.name.toLowerCase();
+  try {
+    const layout: Layout = mine ? (await getMyRoom(session.token)).layout : (await getRoomLayout(session.token)).layout;
+    if (space?.id === id) room.setLayout(layout);
+  } catch {
+    // The default furniture stays.
+  }
+  // A guest's own room is kept only until they leave it: say so on the way in (the user, 11/18).
+  if (mine && !isMember(session)) guestRoomNotice.hidden = false;
+}
+const guestRoomNotice = document.createElement("div");
+guestRoomNotice.id = "myroom-guest";
+guestRoomNotice.hidden = true;
+guestRoomNotice.setAttribute("role", "alertdialog");
+guestRoomNotice.setAttribute("aria-modal", "true");
+guestRoomNotice.setAttribute("aria-labelledby", "myroom-guest-title");
+{
+  const card = document.createElement("div");
+  card.className = "settings-card";
+  const h = document.createElement("h2");
+  h.id = "myroom-guest-title";
+  h.textContent = "Your room resets when you leave";
+  const p = document.createElement("p");
+  p.textContent = "You're a guest, so nothing in here is kept: your notebook, calendar and furniture are cleared as soon as you leave the room. Sign up with your ANU email to keep them.";
+  const ok = document.createElement("button");
+  ok.type = "button";
+  ok.className = "room-primary";
+  ok.textContent = "Got it";
+  ok.style.cssText = "min-height:44px;width:100%;border-radius:10px;margin-top:6px";
+  ok.addEventListener("click", () => (guestRoomNotice.hidden = true));
+  card.append(h, p, ok);
+  guestRoomNotice.append(card);
+  document.body.append(guestRoomNotice);
+}
 
 // The mailbox (plan 16): left of the hanger, with a count of unread mail.
 const mailBtn = document.createElement("button");
@@ -1205,6 +1294,8 @@ const roomPanel = mountRoomPanel({
   onOpenFile: async (id) => (session ? openFile(session.token, id) : "Join first."),
   onImageLink: async (id) => (session ? imageLink(session.token, id) : null),
   onNotice: (msg) => popup(msg),
+  onHome: (what) => void myRoomUi.open(what),
+  isMine: () => !!space && !!session && homeOwnerOf(space.id) === session.name.toLowerCase(),
   maxLength: 200,
 });
 /** The tab opened for the room's whiteboard, waiting for its link. */
@@ -1561,7 +1652,7 @@ for (const id of ["class-picker", "webview", "dog-prompt", "cafe-guide", "hub-ca
 }
 
 const busy = (): boolean =>
-  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen();
+  chat.isTyping() || roomPanel.isTyping() || muteDialog.isOpen() || interestsDialog.isOpen() || followsDialog.isOpen() || npcChat.isOpen() || mailbox.isOpen() || panel.isOpen() || composer.isOpen() || chooser.isOpen() || settingsOpen() || picker.isOpen() || webview.isOpen() || dogPrompt.isOpen() || cafeGuide.isOpen() || calendar.isOpen() || gameTable.isOpen() || guide.isOpen() || invitePopup.isOpen() || board.isOpen() || projectList.isOpen() || linkEditor.isOpen() || bugReport.isOpen() || lookPicker.isOpen() || signupPrompt.isOpen() || myRoomUi.isOpen() || !guestRoomNotice.hidden;
 const keyGuide = mountKeyGuide();
 installDialogKeys();
 
@@ -2108,6 +2199,9 @@ function showJoin(message = ""): void {
   quests.show(false);
   hud.hidden = true;
   touch.hidden = true;
+  myRoomBtn.hidden = true;
+  myRoomUi.close();
+  guestRoomNotice.hidden = true;
   hintEl.hidden = true;
 }
 
@@ -2118,6 +2212,7 @@ function enterWorld(): void {
   joinDialog.hidden = true;
   hud.hidden = false;
   touch.hidden = false;
+  myRoomBtn.hidden = false;
   playing = true;
   keyGuide.show();
   // The welcome tour first, the quests after it (never both at once).
@@ -2319,6 +2414,7 @@ function goOnline(token: string): void {
       // Its voice, listening (the menu's Mic switch makes you heard).
       void voice.join(false);
       roomPanel.setVoice(false);
+      void furnishHome(id);
       roomPanel.open(
         roomInfo(id, room),
         lines.map((l) => ({ ...l, self: !l.system && l.name === session?.name })),
@@ -2327,6 +2423,9 @@ function goOnline(token: string): void {
     },
     timer(t) {
       roomPanel.timer(t);
+    },
+    homeLayout(layout) {
+      homeSpace(space?.id)?.setLayout(layout);
     },
     video(v) {
       const was = lastVideo;
@@ -2821,6 +2920,8 @@ function interact(): void {
   // Anything but a door opens a window: a soft "open" sound (the dog barks instead).
   if (target.kind !== "door" && !(target.kind === "spot" && target.id === "dog")) sfx("open");
   if (target.kind === "door") {
+    // The residence's door: your own room, whoever you are.
+    if (target.door.to === "home") return goHome();
     if (target.door.to === "classroom") {
       stopMoving();
       if (classroomList.length === 0) void loadClassrooms();
@@ -2843,6 +2944,12 @@ function interact(): void {
       dogPrompt.open();
     }
     else if (target.id === "cafes") cafeGuide.open();
+    // My Room's desk: sit down, and (in your own room) the notebook opens.
+    else if (target.id === "home:desk") {
+      const seat = space?.seats?.findIndex((st) => Math.hypot(st.x - player.position.x, st.z - player.position.z) < 1.4) ?? -1;
+      if (seat >= 0) sitDown(seat);
+      if (space && session && homeOwnerOf(space.id) === session.name.toLowerCase()) void myRoomUi.open("notebook");
+    }
     else if (target.id === "calendar") calendar.open();
     else if (target.id.startsWith("table:")) gameTable.open(target.id.slice(6));
     else if (target.id === "board" && space) void openBoard(space.id);

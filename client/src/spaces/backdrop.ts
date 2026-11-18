@@ -243,6 +243,38 @@ const SHOPS = [
 ];
 /** West of Symposium: an unlet unit or a nameless office, glass front and a plain grey awning, no name. */
 const UNLET = [{ name: "", w: 9, board: "", fg: "", awning: 0x8a8d90 }];
+const UNLET_NARROW = [{ name: "", w: 6, board: "", fg: "", awning: 0x8a8d90 }];
+
+/** The residence's entrance (My Room): a warm-lit glass door under a small canopy, its name above. */
+function residenceDoor(parent: THREE.Group, x: number, z: number): THREE.Group {
+  const g = new THREE.Group();
+  parent.add(g);
+  const wall = mat(0xd9c8a9);
+  // The ground floor behind the door and either side of it, to the glass front.
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, FLOOR_H, 14), wall);
+  base.position.set(x, FLOOR_H / 2, z - 7);
+  g.add(base);
+  const glow = new THREE.MeshStandardMaterial({ color: 0xf2d9a8, emissive: 0xffc878, emissiveIntensity: 0.35, roughness: 0.4 });
+  glow.userData.unique = true;
+  nightGlow.push({ m: glow, full: 1.2, day: 0.35 });
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 2.4), glow);
+  door.position.set(x, 1.2, z + 0.02);
+  g.add(door);
+  const frame = mat(0x3b2a1a);
+  for (const [w, h, dx, y] of [[1.8, 0.12, 0, 2.46], [0.12, 2.5, -0.86, 1.25], [0.12, 2.5, 0.86, 1.25], [0.06, 2.4, 0, 1.2]] as const) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.1), frame);
+    bar.position.set(x + dx, y, z + 0.05);
+    g.add(bar);
+  }
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.1, 1.4), mat(0x5b3a24));
+  canopy.position.set(x, 2.78, z + 0.65);
+  canopy.rotation.x = 0.12;
+  g.add(canopy);
+  const sign = textPlane(["Residence", "My Room"], 2.6, 0.75, { bg: "#5b3a24", fg: "#ffffff", font: 0.3 });
+  sign.position.set(x, 3.2, z + 0.03);
+  g.add(sign);
+  return g;
+}
 
 function shopfronts(parent: THREE.Group, x0: number, x1: number, z: number, shops = SHOPS): THREE.Group {
   const g = new THREE.Group();
@@ -320,7 +352,10 @@ export function buildBackdrop(g: THREE.Group, colliders: Box[]): void {
   // boardwalk (each 3.2 m) before the creek: the same block over a glass
   // ground floor, an unlet unit or nameless office.
   rowBlocks.push(block(backdrop, beige, -45.5, -47, 11, 14, 6, 1));
-  rowParts.push(shopfronts(backdrop, -51, -40, -40, UNLET));
+  // Its west end is the residence (My Room, the user 11/18): a lit door with a sign at x -48.6, so the
+  // glass front starts east of it (what was one unlet unit, 9 m, is now 6 m beside the door).
+  rowParts.push(shopfronts(backdrop, -47.5, -40, -40, UNLET_NARROW));
+  rowParts.push(residenceDoor(backdrop, -48.6, -40));
   rowBlocks.push(block(backdrop, beige, 7, -47, 6, 14, 5, 2));
   road(6, 22, 7, -51);
   // Only from the north (a turned view looking south over them): from the road's side they can't hide

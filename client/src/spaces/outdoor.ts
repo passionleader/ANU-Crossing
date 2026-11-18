@@ -288,6 +288,9 @@ export function buildOutdoor(): SpaceDef {
       // The Career Hub (plan 111), in the O'Donoghue centre's lit ground floor across the road.
       // Its door is in the centre's front, on the north road (the user's call, 10/30).
       { x: 18, z: -39, label: "Enter the Career Hub", to: "careers", arrive: { x: 0, z: 7.6 } },
+      // My Room (the user, 11/18): the residence's door at the west end of the north row; it takes
+      // each person to their own room (main.ts resolves "home"). Same spot as server/spaces.ts HOME_DOOR.
+      { x: -48.6, z: -38.9, label: "Enter the residence (My Room)", to: "home", arrive: { x: -3.4, z: 3.4 } },
       // An easter egg: an unmarked staff door at the far end of Lab Coffee.
       { x: 24.5, z: -21, label: "Staff only", to: "poop", arrive: { x: 6, z: -4.5 }, secret: true },
       // E at the end of the bridge: you stop 3 m short of the library, so it never fades.

@@ -82,6 +82,7 @@ export function spaceInfo(id: SpaceId): Space | undefined {
   if (Object.hasOwn(SPACES, id)) return SPACES[id];
   const code = classrooms.get(id);
   if (code) return { label: `${code} classroom`, ...CLASSROOM };
+  if (homeOwner(id)) return { label: "a room", ...HOME };
   return roomOf(id) ? { label: "meeting room", ...ROOM } : undefined;
 }
 
@@ -94,6 +95,8 @@ export function spaceInfo(id: SpaceId): Space | undefined {
 
 export const ROOM_CAP = 6;
 export const ROOM: Omit<Space, "label"> = { halfX: 5, halfZ: 4, spawn: { x: 0, z: -2 } };
+/** My Room's bounds (client/src/spaces/myroom.ts HOME_HALF, server/myroom.ts HOME_HALF). */
+export const HOME: Omit<Space, "label"> = { halfX: 6, halfZ: 5, spawn: { x: -3.4, z: 3.4 } };
 const COUNSEL_DOORS = [-10, -6, -2, 2, 6, 10].map((z) => ({ x: 18.9, z }));
 // The Career Hub's six interview rooms (counselling kind), three down each side (client/src/spaces/meeting.ts CAREER_DOORS).
 const CAREER_DOORS = [...[-6, -2, 2].map((z) => ({ x: -13.9, z })), ...[-6, -2, 2].map((z) => ({ x: 13.9, z }))];
@@ -111,16 +114,28 @@ const ANUSA_TEAM_DOORS = [
 ];
 
 export interface Room {
-  kind: "counselling" | "team";
+  kind: "counselling" | "team" | "home";
   /** The space its door is in, where you go when you leave. */
   parent: SpaceId;
   /** Where its door is, in the parent space. */
   door: { x: number; z: number };
 }
 
-/** The meeting room behind a space id ("counsel-3", "team-comp8020-1", "team-library-5"), if it is one. */
+// --- My Room (the user, 11/18) ----------------------------------------------------
+// Every account has a room of its own, "home-<name in lower case>": its owner always gets in, anyone
+// else only when someone inside has invited them (like a counselling room). Its door is the
+// residence's, on the ground floor at the west end of the north row (client/src/spaces/backdrop.ts),
+// so leaving puts you outside it whoever's room it was.
+export const HOME_DOOR = { x: -48.6, z: -38.9 };
+const HOME_ID = /^home-([a-z0-9_]{1,12})$/;
+/** The account whose room this is (lower case), or null. */
+export const homeOwner = (id: unknown): string | null => (typeof id === "string" ? (HOME_ID.exec(id)?.[1] ?? null) : null);
+export const homeOf = (name: string): SpaceId => `home-${name.toLowerCase()}`;
+
+/** The meeting room behind a space id ("counsel-3", "team-comp8020-1", "team-library-5", "home-alex"), if it is one. */
 export function roomOf(id: unknown): Room | undefined {
   if (typeof id !== "string") return undefined;
+  if (homeOwner(id)) return { kind: "home", parent: "outdoor", door: HOME_DOOR };
   const counsel = /^counsel-([1-9])$/.exec(id);
   if (counsel) {
     const door = COUNSEL_DOORS[Number(counsel[1]) - 1];

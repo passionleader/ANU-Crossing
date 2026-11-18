@@ -6,7 +6,8 @@ import { MAX_CHAT } from "./accounts.ts";
 import { addStamp, isStaff, dropRoomFiles, keepRoomFiles, findByName, findByToken, followersOf, isFollowing, isMember, presenceMutualOnly, keepChatLine, lastSpot, lookOf, tagsOf, poopsNow, putPoop, restrictionOn, saveChat, saveLastSpot, seen, stampCount, type Look } from "./db.ts";
 import { removeObjects } from "./files.ts";
 import { log } from "./log.ts";
-import { ROOM_CAP, STAMPS, clampTo, isSpace, roomOf, spaceInfo, stampOf, type SpaceId } from "./spaces.ts";
+import { ROOM_CAP, STAMPS, clampTo, homeOwner, isSpace, roomOf, spaceInfo, stampOf, type SpaceId } from "./spaces.ts";
+import { forgetGuestRoom } from "./myroom.ts";
 import { KNOCK_GAP_MS, PRESENCE_GAP_MS, mayTell, validOfficeRoom } from "./social.ts";
 import { createTables } from "./tables.ts";
 import { VIDEO_GAP_MS, applyVideo, videoView, type VideoState } from "./video.ts";
@@ -150,8 +151,9 @@ function roomView(space: SpaceId): Record<string, unknown> | null {
   const state = rooms.get(space);
   if (!room || !state) return null;
   const members = inSpace(space).map((p) => p.name);
-  const invited = room.kind === "counselling" ? [...state.invited].filter((n) => !members.some((m) => m.toLowerCase() === n)) : undefined;
-  return { kind: room.kind, cap: ROOM_CAP, members, host: room.kind === "counselling" ? state.host : undefined, invited };
+  const closed = room.kind === "counselling" || room.kind === "home";
+  const invited = closed ? [...state.invited].filter((n) => !members.some((m) => m.toLowerCase() === n)) : undefined;
+  return { kind: room.kind, cap: ROOM_CAP, members, host: room.kind === "counselling" ? state.host : room.kind === "home" ? homeOwner(space) : undefined, invited };
 }
 
 /** What the room's clients are told about its timer: the time left now (not a clock), or null if none is set. */
@@ -305,6 +307,9 @@ function closeRoom(space: SpaceId): void {
   stopTimer(state);
   rooms.delete(space);
   removeObjects(dropRoomFiles(state.session));
+  // A guest's own room lives in memory only: when it empties, it goes (server/myroom.ts).
+  const owner = homeOwner(space);
+  if (owner && /^guest\d+$/.test(owner)) forgetGuestRoom(owner);
 }
 
 /** Where `name` is right now, if they're online (their newest tab). */
@@ -362,6 +367,11 @@ function roomRefusal(space: SpaceId, name: string, staff: boolean): string | nul
   if (!room) return null;
   if (inSpace(space).length >= ROOM_CAP) return "full";
   const state = rooms.get(space);
+  // My Room: its owner always; anyone else only when someone inside has invited them.
+  if (room.kind === "home") {
+    if (homeOwner(space) === name.toLowerCase()) return null;
+    return state?.invited.has(name.toLowerCase()) ? null : "not invited";
+  }
   if (room.kind === "counselling" && !state && !staff) return "staff first";
   if (room.kind === "counselling" && state && !state.invited.has(name.toLowerCase())) return "not invited";
   return null;
@@ -389,7 +399,8 @@ function roomLeft(space: SpaceId, name: string, who: { name: string; token: stri
   const stillHere = inSpace(space).some((p) => p.name.toLowerCase() === name.toLowerCase());
   if (!stillHere && state.host === name) state.host = inSpace(space)[0]!.name;
   // An invitation is good for one visit (the user's call, 10/30): out again, it takes a new one.
-  if (!stillHere && roomOf(space)?.kind === "counselling") state.invited.delete(name.toLowerCase());
+  const kind = roomOf(space)?.kind;
+  if (!stillHere && (kind === "counselling" || kind === "home")) state.invited.delete(name.toLowerCase());
   roomSay(space, { name, text: `${name} left`, system: true });
   roomChanged(space);
 }
@@ -674,7 +685,7 @@ function onMessage(ws: WebSocket, raw: string): void {
     const room = roomOf(player.space);
     const state = rooms.get(player.space);
     const invitee = findByName(msg.name.trim());
-    const reason = !room || room.kind !== "counselling" || !state ? "not in a counselling room" : !invitee ? "no such user" : null;
+    const reason = !room || (room.kind !== "counselling" && room.kind !== "home") || !state ? "not in a counselling room" : !invitee ? "no such user" : null;
     if (reason || !invitee || !state) {
       log("refused", owners.get(ws) ?? null, { action: "invite", space: player.space, reason });
       send(ws, { t: "action", kind: "room-refused", space: player.space, reason });

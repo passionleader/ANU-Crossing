@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { block, doorway, lightPool, place, LIBRARY_BGM, poster, SHARED_BGM, solid, texMat, textPlane, type Box, type Door, type SpaceDef, type SpaceId } from "../world.ts";
 import { roomShell } from "./room.ts";
+import { HOME_DOOR } from "./myroom.ts";
 
 // The small meeting rooms: six counselling rooms off the Student Hub
 // (invite-only) and team rooms off every classroom (three) and the library
@@ -14,7 +15,7 @@ import { roomShell } from "./room.ts";
 const HALF = { halfX: 5, halfZ: 4 };
 export const ROOM_CAP = 6;
 
-export type RoomKind = "counselling" | "team";
+export type RoomKind = "counselling" | "team" | "home";
 
 /** Where you stand to open each room's door, in the space it opens off. Same spots as server/spaces.ts. */
 export const COUNSEL_DOORS = [-10, -6, -2, 2, 6, 10].map((z) => ({ x: 18.9, z }));
@@ -47,6 +48,9 @@ export interface RoomRef {
 
 /** The meeting room behind a space id, if it is one; `classroomCode` names a classroom's code. */
 export function roomRef(id: SpaceId, classroomCode: (space: SpaceId) => string | undefined): RoomRef | undefined {
+  // My Room (spaces/myroom.ts): a room like the others to the room window (chat, notes, invites).
+  const home = /^home-([a-z0-9_]{1,12})$/.exec(id);
+  if (home) return { kind: "home", title: `${home[1]}'s room`, parent: "outdoor", door: HOME_DOOR };
   // The Career Hub's interview rooms (plan 111): counselling rooms, invite only.
   const career = /^career-([1-9])$/.exec(id);
   if (career) {

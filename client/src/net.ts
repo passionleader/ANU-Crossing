@@ -3,6 +3,7 @@ import type { TableView } from "./gametable.ts";
 import type { VideoView } from "./roomscreen.ts";
 import type { Look } from "./lookpicker.ts";
 import type { SpaceId } from "./world.ts";
+import type { Layout } from "./spaces/myroom.ts";
 
 // The client side of the real-time layer (server/realtime.ts): one socket,
 // reconnecting on its own. It sends this player's position, space changes,
@@ -36,7 +37,7 @@ export type Emote = "wave" | "yes" | "no" | "mate" | "dance";
 
 /** A meeting room as the server sees it (server/realtime.ts roomView). */
 export interface RoomState {
-  kind: "counselling" | "team";
+  kind: "counselling" | "team" | "home";
   cap: number;
   members: string[];
   host?: string;
@@ -97,6 +98,8 @@ export interface NetHandlers {
   roomOpen(space: SpaceId, x: number, z: number, room: RoomState, lines: RoomLine[], players: RemotePlayer[], pad: { text: string; by: string | null }, timer: RoomTimer | null, video: VideoView | null): void;
   /** The room's shared video changed: another, play, pause, seek, or none (null). */
   video(video: VideoView | null): void;
+  /** The owner of the room we're in rearranged it (My Room). */
+  homeLayout(layout: Layout): void;
   /** Our video action wasn't taken (not a YouTube or Vimeo link, too quick…); the video as it stands. */
   videoRefused(reason: string, video: VideoView | null): void;
   /** The room's timer was started, paused, moved on or reset (null: none). */
@@ -237,6 +240,7 @@ export function connect(token: string, on: NetHandlers): Net {
           if (m.kind === "room-open")
             return on.roomOpen(m.space as SpaceId, m.x as number, m.z as number, m.room as RoomState, m.lines as RoomLine[], m.players as RemotePlayer[], (m.pad as { text: string; by: string | null }) ?? { text: "", by: null }, (m.timer as RoomTimer | null) ?? null, (m.video as VideoView | null) ?? null);
           if (m.kind === "video") return on.video((m.video as VideoView | null) ?? null);
+          if (m.kind === "home-layout" && m.layout && typeof m.layout === "object") return on.homeLayout(m.layout as Layout);
           if (m.kind === "video-refused") return on.videoRefused(String(m.reason), (m.video as VideoView | null) ?? null);
           if (m.kind === "timer") return on.timer((m.timer as RoomTimer | null) ?? null);
           if (m.kind === "pad") return on.pad(m.text as string, m.by as string);

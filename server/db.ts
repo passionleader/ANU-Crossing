@@ -671,6 +671,31 @@ export const stampsOf = (name: string): { stamp: string; at: string }[] =>
   db.prepare("SELECT stamp, at FROM stamps WHERE name = ? ORDER BY at, stamp").all(name) as { stamp: string; at: string }[];
 export const stampCount = (name: string): number => (db.prepare("SELECT COUNT(*) AS n FROM stamps WHERE name = ?").get(name) as { n: number }).n;
 
+// --- My Room (server/myroom.ts) ---------------------------------------------------
+// A member's own room: its notebook, its personal calendar and its furniture, one row each,
+// read and written only by the member (main.ts checks). Gone with the account.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS my_rooms (
+    name     TEXT PRIMARY KEY REFERENCES visitors(name) ON DELETE CASCADE ON UPDATE CASCADE,
+    notebook TEXT NOT NULL DEFAULT '',
+    calendar TEXT NOT NULL DEFAULT '[]',
+    layout   TEXT,
+    updated  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+export interface MyRoomRow {
+  notebook: string;
+  calendar: string;
+  layout: string | null;
+}
+export const myRoomOf = (name: string): MyRoomRow | undefined =>
+  db.prepare("SELECT notebook, calendar, layout FROM my_rooms WHERE name = ?").get(name) as MyRoomRow | undefined;
+/** Saves one part of a member's room (the others stay as they were). */
+export function saveMyRoom(name: string, part: "notebook" | "calendar" | "layout", value: string): void {
+  db.prepare("INSERT OR IGNORE INTO my_rooms (name) VALUES (?)").run(name);
+  db.prepare(`UPDATE my_rooms SET ${part} = ?, updated = datetime('now') WHERE name = ?`).run(value, name);
+}
+
 // --- the events timetable ----------------------------------------------------------
 // A member puts an event on the timetable: a title, a space, a start in the next 30 days and
 // a length. It shows as "Coming up", then as a banner in its space while it's on, and is
